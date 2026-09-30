@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>إنشاء حساب • خريطة الدراسة</title><link rel="stylesheet" href="login.css">
+  <style>
+    .links { display: flex; justify-content: center; margin-top: 15px; font-size: 0.9em; }
+    .links a { color: #4CAF50; text-decoration: none; }
+  </style>
+</head>
+<body>
+  <main class="login-shell">
+    <section class="login-card">
+      <div class="brand">🎓</div>
+      <h1>حساب جديد</h1>
+      <p>أنشئ حسابك للبدء في استخدام لوحة الدراسة.</p>
+      
+      <form id="registerForm" autocomplete="off">
+        <label>الاسم<input id="name" name="name" type="text" required placeholder="اسمك الكامل"></label>
+        <label>البريد الإلكتروني<input id="email" name="email" type="email" required placeholder="البريد الإلكتروني"></label>
+        <label>كلمة السر<input id="password" name="password" type="password" required placeholder="كلمة السر"></label>
+        <button type="submit">تسجيل</button>
+        <div id="registerError" class="error" hidden></div>
+      </form>
+
+      <div class="links">
+        <a href="/login.html">لديك حساب بالفعل؟ تسجيل الدخول</a>
+      </div>
+    </section>
+  </main>
+  <script>
+    document.getElementById('registerForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const form = e.target;
+      const error = document.getElementById('registerError');
+      const btn = form.querySelector('button');
+      error.hidden = true; btn.disabled = true; btn.textContent = 'جاري التسجيل...';
+      try {
+        const body = Object.fromEntries(new FormData(form).entries());
+        const res = await fetch('/api/register', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+        localStorage.setItem('verifyEmail', body.email);
+        location.href = '/verify.html';
+      } catch (err) {
+        error.textContent = err.message; error.hidden = false;
+      } finally {
+        btn.disabled = false; btn.textContent = 'تسجيل';
+      }
+    });
+  </script>
+</body>
+</html>
