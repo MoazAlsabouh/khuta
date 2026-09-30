@@ -15,7 +15,14 @@ const Exam = require("./models/Exam");
 const WeeklyTask = require("./models/WeeklyTask");
 const WeeklyActivity = require("./models/WeeklyActivity");
 
-const app = express();
+
+function getFriendlyError(err) {
+  if (err.name === 'MongooseServerSelectionError' || (err.message && err.message.includes('timed out'))) {
+    return "نعتذر، تعذر الاتصال بقاعدة البيانات حالياً. يرجى المحاولة بعد قليل.";
+  }
+  return err.message || "حدث خطأ غير متوقع.";
+}
+\nconst app = express();
 const port = process.env.PORT || 3000;
 const MONGO_URI = process.env.MONGO_URI || "mongodb://localhost:27017/study-dashboard";
 
@@ -94,7 +101,7 @@ app.post("/api/register", async (req, res) => {
     await mailer.sendVerificationEmail(email, code);
     res.json({ ok: true, message: "تم إرسال رمز التحقق إلى بريدك الإلكتروني" });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: getFriendlyError(err) });
   }
 });
 
@@ -111,7 +118,7 @@ app.post("/api/verify", async (req, res) => {
     req.session.userId = user._id; // Login after verify
     res.json({ ok: true });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: getFriendlyError(err) });
   }
 });
 
@@ -127,7 +134,7 @@ app.post("/api/login", async (req, res) => {
     req.session.userId = user._id;
     res.json({ ok: true });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: getFriendlyError(err) });
   }
 });
 
@@ -145,7 +152,7 @@ app.post("/api/forgot-password", async (req, res) => {
     await mailer.sendResetPasswordEmail(email, code);
     res.json({ ok: true });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: getFriendlyError(err) });
   }
 });
 
@@ -166,13 +173,13 @@ app.post("/api/reset-password", async (req, res) => {
     
     res.json({ ok: true });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: getFriendlyError(err) });
   }
 });
 
 app.post("/api/logout", (req, res) => {
   req.session.destroy(err => {
-    if (err) return res.status(500).json({ error: err.message });
+    if (err) return res.status(500).json({ error: getFriendlyError(err) });
     res.json({ ok: true });
   });
 });
@@ -222,7 +229,7 @@ app.get("/api/lessons", async (req, res) => {
         }))
       };
     }));
-  } catch(e) { res.status(500).json({error:e.message}); }
+  } catch(e) { res.status(500).json({ error: getFriendlyError(e) }); }
 });
 
 app.patch("/api/lessons/:id", async (req, res) => {
@@ -247,7 +254,7 @@ app.patch("/api/lessons/:id", async (req, res) => {
     await progress.save();
     
     res.json({ ok: true });
-  } catch(e) { res.status(500).json({error:e.message}); }
+  } catch(e) { res.status(500).json({ error: getFriendlyError(e) }); }
 });
 
 app.get("/api/channels", async (req, res) => {
@@ -337,7 +344,7 @@ app.get("/api/weekly", async (req, res) => {
   try {
     const tasks = await WeeklyTask.find({ user: req.user._id });
     res.json(tasks.map(x => ({ id: x._id, day: x.day, subject: x.subject, task: x.task, time: x.time, done: x.done, doneDate: x.doneDate })));
-  } catch(e) { res.status(500).json({error:e.message}); }
+  } catch(e) { res.status(500).json({ error: getFriendlyError(e) }); }
 });
 
 app.get("/api/weekly/activity", async (req, res) => {
@@ -357,7 +364,7 @@ app.get("/api/weekly/activity", async (req, res) => {
     const activities = await WeeklyActivity.find({ user: req.user._id });
     res.json({ weeks: activities.map(a => ({ id: a._id, name: a.name, start: a.start, end: a.end, completed: a.completed, total: a.total, percent: a.percent, level: a.level })), 
     current: { id: current._id, name: current.name, start: current.start, end: current.end, completed: current.completed, total: current.total, percent: current.percent, level: current.level }, window });
-  } catch(e) { res.status(500).json({error:e.message}); }
+  } catch(e) { res.status(500).json({ error: getFriendlyError(e) }); }
 });
 
 app.post("/api/weekly", async (req, res) => {
@@ -370,7 +377,7 @@ app.post("/api/weekly", async (req, res) => {
     
     await refreshCurrentWeeklyActivity(req.user._id);
     res.json({ id: t._id, day: t.day, subject: t.subject, task: t.task, time: t.time, done: t.done, doneDate: t.doneDate });
-  } catch(e) { res.status(500).json({error:e.message}); }
+  } catch(e) { res.status(500).json({ error: getFriendlyError(e) }); }
 });
 
 app.patch("/api/weekly/:id", async (req, res) => {
@@ -385,7 +392,7 @@ app.patch("/api/weekly/:id", async (req, res) => {
     
     const activity = await refreshCurrentWeeklyActivity(req.user._id);
     res.json({ok:true, activity: activity.current});
-  } catch(e) { res.status(500).json({error:e.message}); }
+  } catch(e) { res.status(500).json({ error: getFriendlyError(e) }); }
 });
 
 app.delete("/api/weekly/:id", async (req, res) => {
@@ -393,14 +400,14 @@ app.delete("/api/weekly/:id", async (req, res) => {
     await WeeklyTask.deleteOne({ _id: req.params.id, user: req.user._id });
     await refreshCurrentWeeklyActivity(req.user._id);
     res.json({ok:true});
-  } catch(e) { res.status(500).json({error:e.message}); }
+  } catch(e) { res.status(500).json({ error: getFriendlyError(e) }); }
 });
 
 app.get("/api/exams", async (req, res) => {
   try { 
     const exams = await Exam.find({ user: req.user._id }).sort({ at: 1 });
     res.json(exams.map(ex => ({ id: ex._id, subject: ex.subject, name: ex.name, at: ex.at.toISOString() })));
-  } catch(e) { res.status(500).json({error:e.message}); }
+  } catch(e) { res.status(500).json({ error: getFriendlyError(e) }); }
 });
 
 app.post("/api/exams", async (req, res) => {
@@ -409,14 +416,14 @@ app.post("/api/exams", async (req, res) => {
     const exam = new Exam({ user: req.user._id, subject, name: name || subject, at: new Date(at) });
     await exam.save();
     res.json({ id: exam._id, subject: exam.subject, name: exam.name, at: exam.at.toISOString() });
-  } catch(e) { res.status(500).json({error:e.message}); }
+  } catch(e) { res.status(500).json({ error: getFriendlyError(e) }); }
 });
 
 app.delete("/api/exams/:id", async (req, res) => {
   try { 
     await Exam.deleteOne({ _id: req.params.id, user: req.user._id });
     res.json({ok:true});
-  } catch(e) { res.status(500).json({error:e.message}); }
+  } catch(e) { res.status(500).json({ error: getFriendlyError(e) }); }
 });
 
 app.get("/api/progress", async (req, res) => {
@@ -459,7 +466,7 @@ app.get("/admin", requireAdmin, (req, res) => res.sendFile(path.join(__dirname, 
 
 app.get("/api/admin/users", requireAdmin, async (req, res) => {
   try { res.json(await User.find().select('-password -__v')); } 
-  catch (error) { res.status(500).json({ error: error.message }); }
+  catch (error) { res.status(500).json({ error: getFriendlyError(error) }); }
 });
 
 app.get("/api/admin/stats", requireAdmin, async (req, res) => {
@@ -469,7 +476,7 @@ app.get("/api/admin/stats", requireAdmin, async (req, res) => {
     const channels = await Channel.countDocuments();
     const exams = await Exam.countDocuments();
     res.json({ users, lessons, channels, exams });
-  } catch (error) { res.status(500).json({ error: error.message }); }
+  } catch (error) { res.status(500).json({ error: getFriendlyError(error) }); }
 });
 
 if (require.main === module) app.listen(port, () => console.log(`Study dashboard: http://localhost:${port}`));

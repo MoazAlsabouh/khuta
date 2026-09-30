@@ -115,7 +115,7 @@ function shell({title, subtitle = "", active = ""}, content) {
         </header>
         <section class="page-heading">
           <div>
-            <span class="eyebrow">Study Dashboard</span>
+            <span class="eyebrow">خُطى | رفيقك نحو التفوق</span>
             <h1>${title}</h1>
             ${subtitle ? `<p>${subtitle}</p>` : ""}
           </div>
