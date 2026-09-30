@@ -96,8 +96,8 @@ function shell({title, subtitle = "", active = ""}, content) {
       <main class="container">
         <header class="topbar">
           <a class="brand" href="index.html">
-            <span class="brand-mark">🎓</span>
-            <span><b>خريطة الدراسة الذكية</b><small>2026 / 2027</small></span>
+            <img src="logo.jpg" alt="Logo" style="height: 40px; border-radius: 5px; margin-left: 10px;">
+            <span><b>منصة خريطة الدراسة</b><small>2026 / 2027</small></span>
           </a>
           <nav class="nav">
             <a class="${active === "dashboard" ? "active" : ""}" href="index.html">الرئيسية</a>
@@ -122,7 +122,14 @@ function shell({title, subtitle = "", active = ""}, content) {
         </section>
         <div id="error" class="error hidden"></div>
         ${content}
-        <footer>مصدر البيانات: قاعدة البيانات • آخر تحديث عند فتح أو تحديث الصفحة</footer>
+        <footer style="text-align: center; padding: 20px; font-size: 0.9em; color: #666; margin-top: 40px; border-top: 1px solid #eee;">
+          جميع الحقوق محفوظة معاذ الصبوح &copy; ${new Date().getFullYear()}<br>
+          <div style="margin-top: 10px; display: flex; justify-content: center; gap: 15px;">
+            <a href="https://github.com/MoazAlsabouh/" target="_blank" style="color: #4CAF50; text-decoration: none;">GitHub</a>
+            <a href="https://www.linkedin.com/in/moazalsabouh/" target="_blank" style="color: #4CAF50; text-decoration: none;">LinkedIn</a>
+            <a href="https://x.com/moazAlsabouh" target="_blank" style="color: #4CAF50; text-decoration: none;">X (Twitter)</a>
+          </div>
+        </footer>
       </main>`;
 
     const logoutBtn = $("logout");

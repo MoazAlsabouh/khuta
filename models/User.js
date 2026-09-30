@@ -4,6 +4,7 @@ const userSchema = new mongoose.Schema({
   email: { type: String, required: true, unique: true },
   password: { type: String, required: true },
   name: { type: String, required: true },
+  stream: { type: String, enum: ['علمي', 'أدبي'], default: 'علمي' },
   role: { type: String, enum: ['user', 'admin'], default: 'user' },
   isVerified: { type: Boolean, default: false },
   verificationCode: { type: String },

@@ -11,12 +11,18 @@
 <body>
   <main class="login-shell">
     <section class="login-card">
-      <div class="brand">🎓</div>
+      <div class="brand"><img src="logo.jpg" alt="Logo" style="height: 60px; border-radius: 8px;"></div>
       <h1>حساب جديد</h1>
       <p>أنشئ حسابك للبدء في استخدام لوحة الدراسة.</p>
       
       <form id="registerForm" autocomplete="off">
         <label>الاسم<input id="name" name="name" type="text" required placeholder="اسمك الكامل"></label>
+        <label>الفرع الدراسي
+          <select name="stream" required style="width: 100%; padding: 10px; margin-top: 5px; border-radius: 4px; border: 1px solid #ccc; font-family: inherit;">
+            <option value="علمي">الفرع العلمي</option>
+            <option value="أدبي">الفرع الأدبي</option>
+          </select>
+        </label>
         <label>البريد الإلكتروني<input id="email" name="email" type="email" required placeholder="البريد الإلكتروني"></label>
         <label>كلمة السر<input id="password" name="password" type="password" required placeholder="كلمة السر"></label>
         <button type="submit">تسجيل</button>
@@ -49,5 +55,14 @@
       }
     });
   </script>
-</body>
+
+  <footer style="text-align: center; padding: 20px; font-size: 0.9em; color: #666; margin-top: 40px; border-top: 1px solid #eee;">
+    جميع الحقوق محفوظة معاذ الصبوح &copy; <script>document.write(new Date().getFullYear())</script><br>
+    <div style="margin-top: 10px; display: flex; justify-content: center; gap: 15px;">
+      <a href="https://github.com/MoazAlsabouh/" target="_blank" style="color: #4CAF50; text-decoration: none;">GitHub</a>
+      <a href="https://www.linkedin.com/in/moazalsabouh/" target="_blank" style="color: #4CAF50; text-decoration: none;">LinkedIn</a>
+      <a href="https://x.com/moazAlsabouh" target="_blank" style="color: #4CAF50; text-decoration: none;">X (Twitter)</a>
+    </div>
+  </footer>
+\n</body>
 </html>

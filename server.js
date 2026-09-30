@@ -62,8 +62,8 @@ const generateCode = () => Math.floor(100000 + Math.random() * 900000).toString(
 // AUTH ROUTES
 app.post("/api/register", async (req, res) => {
   try {
-    const { name, email, password } = req.body;
-    if (!name || !email || !password) return res.status(400).json({ error: "جميع الحقول مطلوبة" });
+    const { name, email, password, stream } = req.body;
+    if (!name || !email || !password || !stream) return res.status(400).json({ error: "جميع الحقول مطلوبة" });
     
     let user = await User.findOne({ email });
     if (user && user.isVerified) return res.status(400).json({ error: "البريد الإلكتروني مسجل بالفعل" });
@@ -75,6 +75,7 @@ app.post("/api/register", async (req, res) => {
       // update existing unverified user
       user.name = name;
       user.password = hashedPassword;
+      user.stream = stream;
       user.verificationCode = code;
     } else {
       const userCount = await User.countDocuments();
@@ -82,6 +83,7 @@ app.post("/api/register", async (req, res) => {
         name,
         email,
         password: hashedPassword,
+        stream,
         verificationCode: code,
         role: userCount === 0 ? 'admin' : 'user'
       });
@@ -198,7 +200,8 @@ app.use(requireAuth);
 
 app.get("/api/lessons", async (req, res) => {
   try {
-    const lessons = await Lesson.find().sort({ createdAt: 1 });
+    // Show lessons matching user's stream OR 'مشترك' (common)
+    const lessons = await Lesson.find({ stream: { $in: [req.user.stream, 'مشترك'] } }).sort({ createdAt: 1 });
     const progressList = await LessonProgress.find({ user: req.user._id });
     const progressMap = {};
     progressList.forEach(p => { progressMap[p.lesson.toString()] = p; });
@@ -418,7 +421,7 @@ app.delete("/api/exams/:id", async (req, res) => {
 
 app.get("/api/progress", async (req, res) => {
   try {
-    const lessons = await Lesson.find();
+    const lessons = await Lesson.find({ stream: { $in: [req.user.stream, 'مشترك'] } });
     const progressList = await LessonProgress.find({ user: req.user._id });
     const progressMap = {};
     progressList.forEach(p => { progressMap[p.lesson.toString()] = p; });
