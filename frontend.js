@@ -95,7 +95,7 @@ function shell({title, subtitle = "", active = ""}, content) {
   
   // Fetch user info to show/hide admin link
   const user = auth.currentUser;
-const data = { user: user ? { name: (state.userProfile && state.userProfile.name) || user.displayName || user.email.split('@')[0], role: 'user' } : null };
+const data = { user: user ? { name: (state.userProfile && state.userProfile.name) || user.displayName || user.email.split('@')[0], role: (state.userProfile && state.userProfile.role) || 'user' } : null };
 if (true) {
     const isAdmin = data.user && data.user.role === 'admin';
     const adminLink = isAdmin ? `<a href="/admin">لوحة المشرف</a>` : "";
