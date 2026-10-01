@@ -1,11 +1,11 @@
-import { auth, db, createUserWithEmailAndPassword, setDoc, doc, googleProvider, signInWithPopup } from './firebase-init.js';
+import { auth, createUserWithEmailAndPassword, googleProvider, signInWithPopup, db, doc, setDoc } from './firebase-init.js';
 
 document.getElementById('registerForm').addEventListener('submit', async (e) => {
   e.preventDefault();
   const form = e.target;
   const error = document.getElementById('registerError');
   const btn = form.querySelector('button[type="submit"]');
-  error.hidden = true; btn.disabled = true; btn.textContent = 'جاري التسجيل...';
+  error.hidden = true; btn.disabled = true; btn.textContent = 'جاري الإنشاء...';
   
   const name = form.name.value;
   const stream = form.stream.value;
@@ -13,46 +13,35 @@ document.getElementById('registerForm').addEventListener('submit', async (e) => 
   const password = form.password.value;
   
   try {
-    const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-    const user = userCredential.user;
-    
-    // Save user profile data
-    await setDoc(doc(db, 'users', user.uid), {
+    const cred = await createUserWithEmailAndPassword(auth, email, password);
+    await setDoc(doc(db, 'users', cred.user.uid), {
       name,
       stream,
       email
     });
-    
-    location.href = '/index.html';
+    location.href = 'index.html';
   } catch (err) {
-    error.textContent = 'فشل التسجيل: ' + err.message;
+    error.textContent = 'حدث خطأ أثناء الإنشاء: ' + err.message;
     error.hidden = false;
   } finally {
-    btn.disabled = false; btn.textContent = 'تسجيل';
+    btn.disabled = false; btn.textContent = 'إنشاء الحساب';
   }
 });
 
 document.getElementById('googleLogin').addEventListener('click', async (e) => {
   const error = document.getElementById('registerError');
   error.hidden = true;
+  const stream = document.getElementById('stream').value;
   try {
-    const userCredential = await signInWithPopup(auth, googleProvider);
-    const user = userCredential.user;
-    // For google sign in, we might not have 'stream' chosen in the form, 
-    // but we can save name and email if the user document doesn't exist.
-    // For simplicity, we just save/overwrite here.
-    const form = document.getElementById('registerForm');
-    const stream = form.stream ? form.stream.value : 'علمي';
-    
-    await setDoc(doc(db, 'users', user.uid), {
-      name: user.displayName || 'مستخدم جوجل',
-      stream,
-      email: user.email
+    const cred = await signInWithPopup(auth, googleProvider);
+    await setDoc(doc(db, 'users', cred.user.uid), {
+      name: cred.user.displayName || cred.user.email.split('@')[0],
+      stream: stream,
+      email: cred.user.email
     }, { merge: true });
-    
-    location.href = '/index.html';
+    location.href = 'index.html';
   } catch (err) {
-    error.textContent = 'فشل التسجيل بواسطة جوجل: ' + err.message;
+    error.textContent = 'فشل التسجيل بواسطة جوجل. تحقق من النطاق في Firebase.';
     error.hidden = false;
   }
 });
