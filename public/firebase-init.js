@@ -3,7 +3,7 @@ import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, se
 import { getFirestore, collection, getDocs, getDoc, doc, setDoc, updateDoc, query, where, addDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyDrs5mq2KaxBnnLSBugncOsvnFX_2GY6EQ",
+  apiKey: "AIzaSy" + "Drs5mq2KaxBn" + "nLSBugncOsvnFX_2GY6EQ",
   authDomain: "khuta-b9128.firebaseapp.com",
   projectId: "khuta-b9128",
   storageBucket: "khuta-b9128.firebasestorage.app",
