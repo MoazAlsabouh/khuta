@@ -33,13 +33,13 @@ const subjectsFallback = [
 
 // الأيام الدراسية الخمسة المعتمدة فقط (من الأحد إلى الخميس)
 const WEEKDAYS = [
+  { key: "الجمعة", label: "الجمعة", short: "جمعة" },
+  { key: "السبت", label: "السبت", short: "سبت" },
   { key: "الأحد", label: "الأحد", short: "أحد" },
   { key: "الإثنين", label: "الإثنين", short: "إثنين" },
   { key: "الثلاثاء", label: "الثلاثاء", short: "ثلاثاء" },
   { key: "الأربعاء", label: "الأربعاء", short: "أربعاء" },
-  { key: "الخميس", label: "الخميس", short: "خميس" },
-  { key: "الجمعة", label: "الجمعة", short: "جمعة" },
-  { key: "السبت", label: "السبت", short: "سبت" }
+  { key: "الخميس", label: "الخميس", short: "خميس" }
 ];
 
 const LEVANT_MONTHS_SHORT = [
