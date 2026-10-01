@@ -242,10 +242,7 @@ async function loadProgress() {
   ]);
   state.userProfile = userProfile;
   const lessons = allLessons.filter(x => !x.stream || x.stream === 'مشترك' || x.stream === userProfile.stream);
-  /* 
-    fetchLessons(),
-    fetchProgress()
-  ]);
+
 
   const progressMap = {};
   progressList.forEach(p => { progressMap[p.lesson] = p; });
