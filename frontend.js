@@ -222,13 +222,43 @@ async function fetchWeeklyTasks() {
 
 async function fetchWeeklyActivities() {
   if (!auth.currentUser) return { weeks: [], current: null, window: {} };
+  
   const q = query(collection(db, "weeklyActivity"), where("user", "==", auth.currentUser.uid));
   const snap = await getDocs(q);
   const activities = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  
+  // Generate 52 weeks starting from Sunday, Aug 30, 2026
+  const academicYearStart = new Date("2026-08-30T00:00:00Z");
+  const weeks = [];
+  for (let i = 0; i < 52; i++) {
+    const start = new Date(academicYearStart);
+    start.setUTCDate(start.getUTCDate() + (i * 7));
+    const end = new Date(start);
+    end.setUTCDate(end.getUTCDate() + 6);
+    
+    const startStr = start.toISOString().slice(0, 10);
+    const endStr = end.toISOString().slice(0, 10);
+    
+    const saved = activities.find(a => a.start === startStr);
+    weeks.push({
+      start: startStr,
+      end: endStr,
+      completed: saved ? saved.completed : 0,
+      percent: saved ? saved.percent : 0,
+      days: saved ? saved.days : {}
+    });
+  }
+  
   const now = new Date();
-  const currentWindow = { start: new Date(now.setDate(now.getDate() - now.getDay())).toISOString().slice(0, 10), end: new Date(now.setDate(now.getDate() - now.getDay() + 6)).toISOString().slice(0, 10) };
-  let current = activities.find(a => a.start === currentWindow.start);
-  return { weeks: activities, current, window: currentWindow };
+  const startDay = new Date(now);
+  startDay.setDate(now.getDate() - now.getDay());
+  const endDay = new Date(startDay);
+  endDay.setDate(startDay.getDate() + 6);
+  
+  const currentWindow = { start: startDay.toISOString().slice(0, 10), end: endDay.toISOString().slice(0, 10) };
+  let current = weeks.find(a => a.start === currentWindow.start);
+  
+  return { weeks, current, window: currentWindow };
 }
 
 async function loadProgress() {
