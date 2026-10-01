@@ -619,7 +619,7 @@ async function loadLessonsForSubject(subjectName, reset = true) {
   ]);
   state.userProfile = userProfile;
   const lessons = allLessons.filter(x => !x.stream || x.stream === 'مشترك' || x.stream === userProfile.stream);
-  /*  fetchLessons(), fetchProgress() ]);
+
   const progressMap = {};
   progressList.forEach(p => { progressMap[p.lesson] = p; });
   const stages = [["first","الدراسة الأولى"],["review1","المراجعة الأولى"],["review2","المراجعة الثانية"],["retention","مراجعة التثبيت"],["final","المراجعة الامتحانية الأخيرة"]];
