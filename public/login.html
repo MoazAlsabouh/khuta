@@ -20,6 +20,7 @@
         <label>البريد الإلكتروني<input id="email" name="email" type="email" required placeholder="البريد الإلكتروني"></label>
         <label>كلمة السر<input id="password" name="password" type="password" required placeholder="كلمة السر"></label>
         <button type="submit">دخول</button>
+        <button type="button" id="googleLogin" style="margin-top: 10px; background-color: #4285F4;">تسجيل الدخول بواسطة جوجل</button>
         <div id="loginError" class="error" hidden></div>
       </form>
 
@@ -29,7 +30,7 @@
       </div>
     </section>
   </main>
-  <script src="login.js"></script>
+  <script type="module" src="login.js"></script>
 
   <footer style="text-align: center; padding: 20px; font-size: 0.9em; color: #666; margin-top: 40px; border-top: 1px solid #eee;">
     جميع الحقوق محفوظة معاذ الصبوح &copy; <script>document.write(new Date().getFullYear())</script><br>

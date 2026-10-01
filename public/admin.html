@@ -47,31 +47,34 @@
     </div>
   </div>
 
-  <script>
+  <script type="module">
+    import { auth, db, getDocs, collection } from './firebase-init.js';
+    import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+
     async function fetchAdminData() {
       try {
-        const [statsRes, usersRes] = await Promise.all([
-          fetch('/api/admin/stats'),
-          fetch('/api/admin/users')
-        ]);
+        const usersSnap = await getDocs(collection(db, 'users'));
+        const lessonsSnap = await getDocs(collection(db, 'lessons'));
+        const channelsSnap = await getDocs(collection(db, 'channels'));
+        const examsSnap = await getDocs(collection(db, 'exams'));
         
-        if (!statsRes.ok || !usersRes.ok) throw new Error("Unauthorized or server error");
-        
-        const stats = await statsRes.json();
-        const users = await usersRes.json();
-        
+        const users = [];
+        usersSnap.forEach(doc => {
+          users.push(doc.data());
+        });
+
         document.getElementById('statsContainer').innerHTML = `
-          <div class="stat-box"><h3>${stats.users}</h3><p>مستخدم</p></div>
-          <div class="stat-box"><h3>${stats.lessons}</h3><p>درس</p></div>
-          <div class="stat-box"><h3>${stats.channels}</h3><p>قناة</p></div>
-          <div class="stat-box"><h3>${stats.exams}</h3><p>امتحان</p></div>
+          <div class="stat-box"><h3>${usersSnap.size}</h3><p>مستخدم</p></div>
+          <div class="stat-box"><h3>${lessonsSnap.size}</h3><p>درس</p></div>
+          <div class="stat-box"><h3>${channelsSnap.size}</h3><p>قناة</p></div>
+          <div class="stat-box"><h3>${examsSnap.size}</h3><p>امتحان</p></div>
         `;
 
         document.getElementById('usersTable').innerHTML = users.map(u => `
           <tr>
-            <td>${u.name}</td>
-            <td>${u.email}</td>
-            <td>${new Date(u.createdAt).toLocaleDateString('ar-EG')}</td>
+            <td>${u.name || '-'}</td>
+            <td>${u.email || '-'}</td>
+            <td>-</td>
             <td>${u.role === 'admin' ? 'مشرف' : 'مستخدم'}</td>
           </tr>
         `).join('');
@@ -80,7 +83,14 @@
         alert("فشل تحميل البيانات: " + err.message);
       }
     }
-    fetchAdminData();
+    
+    onAuthStateChanged(auth, user => {
+      if (user) {
+        fetchAdminData();
+      } else {
+        location.href = '/login.html';
+      }
+    });
   </script>
 </body>
 </html>

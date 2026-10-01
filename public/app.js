@@ -1,3 +1,5 @@
+import { app, auth, db, onAuthStateChanged, signOut, collection, getDocs, getDoc, doc, setDoc, updateDoc, query, where, addDoc, deleteDoc } from './firebase-init.js';
+
 const state = {
   data: null,
   lessons: [],
@@ -87,7 +89,9 @@ function shell({title, subtitle = "", active = ""}, content) {
   if (!appEl) return;
   
   // Fetch user info to show/hide admin link
-  fetch("/api/user").then(res => res.json()).then(data => {
+  const user = auth.currentUser;
+const data = { user: user ? { name: user.displayName || user.email, role: 'user' } : null };
+if (true) {
     const isAdmin = data.user && data.user.role === 'admin';
     const adminLink = isAdmin ? `<a href="/admin">لوحة المشرف</a>` : "";
     const userName = data.user ? `<span style="margin-left:10px;">${data.user.name}</span>` : "";
@@ -135,7 +139,7 @@ function shell({title, subtitle = "", active = ""}, content) {
     const logoutBtn = $("logout");
     if (logoutBtn) {
       logoutBtn.onclick = async () => {
-        try { await fetch("/api/logout", { method: "POST" }); } catch(_) {}
+        await signOut(auth);
         location.href = "/login.html";
       };
     }
@@ -147,14 +151,7 @@ function shell({title, subtitle = "", active = ""}, content) {
   });
 }
 
-async function api(url, options) {
-  const r = await fetch(url, { cache: "no-store", ...options });
-  const data = await r.json().catch(() => ({}));
-  if (!r.ok) {
-    throw new Error(data.details || data.error || data.hint || "حدث خطأ أثناء جلب البيانات");
-  }
-  return data;
-}
+
 
 function showError(error) {
   const box = $("error");
@@ -168,10 +165,91 @@ function hideError() {
   if (box) box.classList.add("hidden");
 }
 
+
+async function fetchLessons() {
+  const q = query(collection(db, "lessons"));
+  const snap = await getDocs(q);
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+
+async function fetchProgress() {
+  if (!auth.currentUser) return [];
+  const q = query(collection(db, "progress"), where("user", "==", auth.currentUser.uid));
+  const snap = await getDocs(q);
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+
+async function fetchExams() {
+  if (!auth.currentUser) return [];
+  const q = query(collection(db, "exams"), where("user", "==", auth.currentUser.uid));
+  const snap = await getDocs(q);
+  const exams = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  return exams.sort((a, b) => new Date(a.at) - new Date(b.at));
+}
+
+async function fetchChannels() {
+  if (!auth.currentUser) return [];
+  const q = query(collection(db, "channels"), where("user", "==", auth.currentUser.uid));
+  const snap = await getDocs(q);
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+
+async function fetchWeeklyTasks() {
+  if (!auth.currentUser) return [];
+  const q = query(collection(db, "weeklyTasks"), where("user", "==", auth.currentUser.uid));
+  const snap = await getDocs(q);
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+
+async function fetchWeeklyActivities() {
+  if (!auth.currentUser) return { weeks: [], current: null, window: {} };
+  const q = query(collection(db, "weeklyActivity"), where("user", "==", auth.currentUser.uid));
+  const snap = await getDocs(q);
+  const activities = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  const now = new Date();
+  const currentWindow = { start: new Date(now.setDate(now.getDate() - now.getDay())).toISOString().slice(0, 10), end: new Date(now.setDate(now.getDate() - now.getDay() + 6)).toISOString().slice(0, 10) };
+  let current = activities.find(a => a.start === currentWindow.start);
+  return { weeks: activities, current, window: currentWindow };
+}
+
 async function loadProgress() {
-  state.data = await api("/api/progress");
+  const user = auth.currentUser;
+  if (!user) return { overallPercent: 0, totalLessons: 0, subjects: [], stages: [] };
+
+  const [lessons, progressList] = await Promise.all([
+    fetchLessons(),
+    fetchProgress()
+  ]);
+
+  const progressMap = {};
+  progressList.forEach(p => { progressMap[p.lesson] = p; });
+
+  const subjects = [...new Set(lessons.map(x => x.subject).filter(Boolean))].sort();
+  const stages = [["first","الدراسة الأولى"],["review1","المراجعة الأولى"],["review2","المراجعة الثانية"],["retention","مراجعة التثبيت"],["final","المراجعة الامتحانية الأخيرة"]];
+
+  const stageProgress = Object.fromEntries(stages.map(([key, label]) => { 
+    const done = lessons.filter(x => progressMap[x.id]?.[key]).length; 
+    return [key, {label, done, total: lessons.length, percent: lessons.length ? Math.round((done/lessons.length)*100) : 0}]; 
+  }));
+
+  const subjectProgress = subjects.map(subject => { 
+    const rows = lessons.filter(x => x.subject === subject); 
+    const stage = Object.fromEntries(stages.map(([key, label]) => {
+      const done = rows.filter(x => progressMap[x.id]?.[key]).length;
+      return [key, {label, done, total: rows.length, percent: rows.length ? Math.round((done/rows.length)*100) : 0}];
+    })); 
+    const completedStages = rows.reduce((sum, x) => sum + stages.filter(([key]) => progressMap[x.id]?.[key]).length, 0); 
+    const totalChecks = rows.length * stages.length; 
+    return {subject, lessons: rows.length, percent: totalChecks ? Math.round((completedStages/totalChecks)*100) : 0, stages: stage}; 
+  });
+
+  const totalChecks = lessons.length * stages.length; 
+  const completedChecks = lessons.reduce((sum, x) => sum + stages.filter(([key]) => progressMap[x.id]?.[key]).length, 0);
+
+  state.data = { academicYear: "2026/2027", updatedAt: new Date().toISOString(), totalLessons: lessons.length, overallPercent: totalChecks ? Math.round((completedChecks/totalChecks)*100) : 0, stages: stageProgress, subjects: subjectProgress };
   return state.data;
 }
+
 
 function countdown(at) {
   if (!at) return { expired: true, text: "لم يحدد موعد" };
@@ -307,7 +385,7 @@ async function dashboardPage() {
   try {
     const [d, rawExams] = await Promise.all([
       loadProgress(),
-      api("/api/exams").catch(() => [])
+      fetchExams()
     ]);
     const safeExams = Array.isArray(rawExams) ? rawExams.map(toExam) : [];
     renderDashboard(d, safeExams);
@@ -487,11 +565,15 @@ function renderLessons(subjectName) {
     cb.onchange = async e => {
       const el = e.target;
       try {
-        await api(`/api/lessons/${encodeURIComponent(el.dataset.id)}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ property: el.dataset.prop, checked: el.checked })
-        });
+        const allowed = { "الدراسة الأولى": "first", "المراجعة الأولى": "review1", "المراجعة الثانية": "review2", "مراجعة التثبيت": "retention", "المراجعة الامتحانية الأخيرة": "final" };
+  const key = allowed[el.dataset.prop];
+  const q = query(collection(db, "progress"), where("user", "==", auth.currentUser.uid), where("lesson", "==", el.dataset.id));
+  const snap = await getDocs(q);
+  if (!snap.empty) {
+    await updateDoc(snap.docs[0].ref, { [key]: el.checked });
+  } else {
+    await addDoc(collection(db, "progress"), { user: auth.currentUser.uid, lesson: el.dataset.id, [key]: el.checked });
+  }
         const old = state.unitIndex;
         await loadProgress();
         await loadLessonsForSubject(subjectName, false);
@@ -506,13 +588,25 @@ function renderLessons(subjectName) {
 }
 
 async function loadLessonsForSubject(subjectName, reset = true) {
-  state.lessons = await api("/api/lessons");
+  state.lessons = await (async function() {
+  const [lessons, progressList] = await Promise.all([ fetchLessons(), fetchProgress() ]);
+  const progressMap = {};
+  progressList.forEach(p => { progressMap[p.lesson] = p; });
+  const stages = [["first","الدراسة الأولى"],["review1","المراجعة الأولى"],["review2","المراجعة الثانية"],["retention","مراجعة التثبيت"],["final","المراجعة الامتحانية الأخيرة"]];
+  return lessons.map(x => {
+    const p = progressMap[x.id] || {};
+    return {
+      id: x.id, lesson: x.lesson, subject: x.subject, unit: x.unit,
+      stages: stages.map(([key, label]) => ({ property: label, label, checked: !!p[key] }))
+    };
+  });
+})();
   if (reset) state.unitIndex = 0;
   renderLessons(subjectName);
 }
 
 async function renderSubjectChannels(subjectName) {
-  const rows = (await api("/api/channels").catch(() => [])).filter(x => x.subject === subjectName);
+  const rows = (await fetchChannels()).filter(x => x.subject === subjectName);
   $("subjectChannels").innerHTML = rows.length
     ? rows.map(channelCard).join("")
     : `<div class="empty">لا توجد مصادر مسجلة لهذه المادة حتى الآن.</div>`;
@@ -785,14 +879,10 @@ function renderWeekly(rows) {
   document.querySelectorAll("[data-week-id]").forEach(el => {
     el.onchange = async () => {
       try {
-        await api(`/api/weekly/${el.dataset.weekId}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ done: el.checked })
-        });
-        state.weekly = await api("/api/weekly");
+        await updateDoc(doc(db, 'weeklyTasks', el.dataset.weekId), { done: el.checked, doneDate: el.checked ? new Date().toISOString() : null });
+        state.weekly = await fetchWeeklyTasks();
         renderWeekly(state.weekly);
-        renderWeeklyActivity(await api("/api/weekly/activity"));
+        renderWeeklyActivity(await fetchWeeklyActivities());
       } catch (e) {
         el.checked = !el.checked;
         showError(e);
@@ -803,10 +893,10 @@ function renderWeekly(rows) {
   document.querySelectorAll("[data-delweek-id]").forEach(el => {
     el.onclick = async () => {
       try {
-        await api(`/api/weekly/${el.dataset.delweekId}`, { method: "DELETE" });
-        state.weekly = await api("/api/weekly");
+        await deleteDoc(doc(db, 'weeklyTasks', el.dataset.delweekId));
+        state.weekly = await fetchWeeklyTasks();
         renderWeekly(state.weekly);
-        renderWeeklyActivity(await api("/api/weekly/activity"));
+        renderWeeklyActivity(await fetchWeeklyActivities());
       } catch (e) {
         showError(e);
       }
@@ -816,8 +906,8 @@ function renderWeekly(rows) {
 
 async function refreshWeeklyView() {
   const before = state.weeklyActivity?.current?.start || "";
-  state.weekly = await api("/api/weekly").catch(() => []);
-  const activity = await api("/api/weekly/activity").catch(() => ({}));
+  state.weekly = await fetchWeeklyTasks();
+  const activity = await fetchWeeklyActivities();
   renderWeekly(state.weekly);
   renderWeeklyActivity(activity);
   return before !== (activity.current?.start || "");
@@ -841,16 +931,12 @@ async function weeklyPage() {
         e.preventDefault();
         const f = new FormData(e.target);
         try {
-          await api("/api/weekly", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
+          await addDoc(collection(db, 'weeklyTasks'), { user: auth.currentUser.uid, done: false, 
               day: f.get("day"),
               subject: f.get("subject"),
               task: f.get("task"),
               time: f.get("time")
-            })
-          });
+             });
           e.target.reset();
           await refreshWeeklyView();
         } catch (err) {
@@ -895,8 +981,8 @@ function renderExams(rows) {
   document.querySelectorAll("[data-delexam-id]").forEach(el => {
     el.onclick = async () => {
       try {
-        await api(`/api/exams/${el.dataset.delexamId}`, { method: "DELETE" });
-        state.exams = await api("/api/exams");
+        await deleteDoc(doc(db, 'exams', el.dataset.delexamId));
+        state.exams = await fetchExams();
         renderExams(state.exams);
       } catch (e) {
         showError(e);
@@ -929,7 +1015,7 @@ async function examsPage() {
     <div id="examList" class="exam-list"></div>`);
 
   try {
-    state.exams = await api("/api/exams");
+    state.exams = await fetchExams();
     renderExams(state.exams);
 
     const form = $("examForm");
@@ -938,17 +1024,13 @@ async function examsPage() {
         e.preventDefault();
         const f = new FormData(e.target);
         try {
-          await api("/api/exams", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
+          await addDoc(collection(db, 'exams'), { user: auth.currentUser.uid, 
               subject: f.get("subject"),
               name: f.get("name"),
               at: `${f.get("date")}T${f.get("time")}`
-            })
-          });
+             });
           e.target.reset();
-          state.exams = await api("/api/exams");
+          state.exams = await fetchExams();
           renderExams(state.exams);
         } catch (err) {
           showError(err);
@@ -989,7 +1071,7 @@ async function channelsPage() {
 
   try {
     const render = async () => {
-      const rows = await api("/api/channels").catch(() => []);
+      const rows = await fetchChannels();
       const listEl = $("channelList");
       if (listEl) {
         listEl.innerHTML = rows.length
@@ -1006,11 +1088,7 @@ async function channelsPage() {
         e.preventDefault();
         const f = new FormData(e.target);
         try {
-          await api("/api/channels", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(Object.fromEntries(f.entries()))
-          });
+          await addDoc(collection(db, 'channels'), { user: auth.currentUser.uid, ...Object.fromEntries(f.entries()) });
           e.target.reset();
           await render();
         } catch (err) {
@@ -1023,7 +1101,12 @@ async function channelsPage() {
   }
 }
 
-(async function init() {
+onAuthStateChanged(auth, async (user) => {
+  if (!user) {
+    window.location.href = "login.html";
+    return;
+  }
+  const init = async () => {
   hideError();
   try {
     if (page === "dashboard") return await dashboardPage();
@@ -1035,4 +1118,6 @@ async function channelsPage() {
   } catch (err) {
     showError(err);
   }
-})();
+};
+init();
+});

@@ -18,29 +18,23 @@
       </form>
     </section>
   </main>
-  <script>
-    const email = localStorage.getItem('verifyEmail');
-    if (!email) location.href = '/register.html';
-
-    document.getElementById('verifyForm').addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const form = e.target;
-      const error = document.getElementById('verifyError');
-      const btn = form.querySelector('button');
-      error.hidden = true; btn.disabled = true; btn.textContent = 'جاري التحقق...';
-      try {
-        const body = { email, code: form.code.value };
-        const res = await fetch('/api/verify', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error);
-        localStorage.removeItem('verifyEmail');
-        location.href = '/index.html';
-      } catch (err) {
-        error.textContent = err.message; error.hidden = false;
-      } finally {
-        btn.disabled = false; btn.textContent = 'تأكيد الرمز';
-      }
-    });
+  <script type="module">
+    import { auth } from './firebase-init.js';
+    import { applyActionCode } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+    
+    const params = new URLSearchParams(location.search);
+    const code = params.get('oobCode');
+    
+    if (code) {
+      document.getElementById('verifyForm').innerHTML = '<p>جاري التحقق من بريدك الإلكتروني...</p>';
+      applyActionCode(auth, code).then(() => {
+        document.getElementById('verifyForm').innerHTML = '<p style="color:green;">تم التحقق من بريدك بنجاح! <a href="/index.html">الذهاب للرئيسية</a></p>';
+      }).catch(err => {
+        document.getElementById('verifyForm').innerHTML = '<p style="color:red;">فشل التحقق: ' + err.message + '</p>';
+      });
+    } else {
+      document.getElementById('verifyForm').innerHTML = '<p style="color:red;">رابط غير صالح.</p>';
+    }
   </script>
 
   <footer style="text-align: center; padding: 20px; font-size: 0.9em; color: #666; margin-top: 40px; border-top: 1px solid #eee;">
