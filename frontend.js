@@ -148,7 +148,7 @@ if (true) {
     if (refreshBtn) {
       refreshBtn.onclick = () => location.reload();
     }
-  });
+  }
 }
 
 
