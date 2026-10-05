@@ -98,7 +98,7 @@ function shell({title, subtitle = "", active = ""}, content) {
 const data = { user: user ? { name: (state.userProfile && state.userProfile.name) || user.displayName || user.email.split('@')[0], role: (state.userProfile && state.userProfile.role) || 'user' } : null };
 if (true) {
     const isAdmin = data.user && data.user.role === 'admin';
-    const adminLink = isAdmin ? `<a href="/admin">لوحة المشرف</a>` : "";
+    const adminLink = isAdmin ? `<a href="admin.html">لوحة المشرف</a>` : "";
     const userName = data.user ? `<span style="margin-left:10px;">${data.user.name}</span>` : "";
 
     appEl.innerHTML = `
