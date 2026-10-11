@@ -12,6 +12,17 @@
     .brand { display: flex; flex-direction: column; align-items: center; gap: 10px; margin-bottom: 20px; }
     .brand img { height: 60px; border-radius: 8px; mix-blend-mode: multiply; }
   </style>
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" type="image/svg+xml" href="icon.svg">
+  <meta name="theme-color" content="#4f46e5">
+  <script>
+    (function() {
+      const t = localStorage.getItem('khuta_theme');
+      if (t === 'dark' || (!t && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+        document.documentElement.setAttribute('data-theme', 'dark');
+      }
+    })();
+  </script>
 </head>
 <body>
   <main class="login-shell">

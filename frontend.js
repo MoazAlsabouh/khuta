@@ -70,6 +70,263 @@ function toExam(item) {
 // إتاحتها في النطاق العام لمنع أي خطأ غير متوقع
 window.toExam = toExam;
 
+
+// ==========================================================
+// SUPER PWA & WEB AUDIO & THEME ENGINE UTILITIES
+// ==========================================================
+
+// Web Audio API Synthesizer (Zero External Audio Files)
+const soundEffects = {
+  ctx: null,
+  init() {
+    if (!this.ctx) {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (AudioCtx) this.ctx = new AudioCtx();
+    }
+    if (this.ctx && this.ctx.state === 'suspended') {
+      this.ctx.resume();
+    }
+  },
+  playTaskDone() {
+    try {
+      this.init();
+      if (!this.ctx) return;
+      const now = this.ctx.currentTime;
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(523.25, now); // C5
+      osc.frequency.exponentialRampToValueAtTime(659.25, now + 0.1); // E5
+      osc.frequency.exponentialRampToValueAtTime(783.99, now + 0.2); // G5
+      gain.gain.setValueAtTime(0.2, now);
+      gain.gain.exponentialRampToValueAtTime(0.01, now + 0.35);
+      osc.connect(gain);
+      gain.connect(this.ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.35);
+    } catch (e) {}
+  },
+  playTimerComplete() {
+    try {
+      this.init();
+      if (!this.ctx) return;
+      const now = this.ctx.currentTime;
+      [587.33, 880, 1174.66].forEach((freq, idx) => {
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(freq, now + idx * 0.12);
+        gain.gain.setValueAtTime(0.3, now + idx * 0.12);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + idx * 0.12 + 0.4);
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start(now + idx * 0.12);
+        osc.stop(now + idx * 0.12 + 0.4);
+      });
+    } catch (e) {}
+  },
+  playCardFlip() {
+    try {
+      this.init();
+      if (!this.ctx) return;
+      const now = this.ctx.currentTime;
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(320, now);
+      osc.frequency.exponentialRampToValueAtTime(180, now + 0.08);
+      gain.gain.setValueAtTime(0.15, now);
+      gain.gain.exponentialRampToValueAtTime(0.01, now + 0.08);
+      osc.connect(gain);
+      gain.connect(this.ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.08);
+    } catch (e) {}
+  }
+};
+window.soundEffects = soundEffects;
+
+// Toast Notifications System
+function showToast(message, type = 'success', duration = 3200) {
+  let container = document.getElementById('toastContainer');
+  if (!container) {
+    container = document.createElement('div');
+    container.id = 'toastContainer';
+    document.body.appendChild(container);
+  }
+  const toast = document.createElement('div');
+  toast.className = `toast toast-${type}`;
+  const icon = type === 'success' ? '✨' : type === 'error' ? '⚠️' : '⚡';
+  toast.innerHTML = `<span>${icon} ${esc(message)}</span><span style="cursor:pointer; opacity:0.6; font-size:18px;">&times;</span>`;
+  toast.querySelector('span:last-child').onclick = () => {
+    toast.classList.add('toast-exit');
+    setTimeout(() => toast.remove(), 300);
+  };
+  container.appendChild(toast);
+  setTimeout(() => {
+    if (toast.parentElement) {
+      toast.classList.add('toast-exit');
+      setTimeout(() => toast.remove(), 300);
+    }
+  }, duration);
+}
+window.showToast = showToast;
+
+// Theme Engine (Dark & Light Mode)
+function getSavedTheme() {
+  const t = localStorage.getItem('khuta_theme');
+  if (t) return t;
+  return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+}
+
+function applyTheme(theme) {
+  document.documentElement.setAttribute('data-theme', theme);
+  localStorage.setItem('khuta_theme', theme);
+  const btn = document.getElementById('themeToggle');
+  if (btn) btn.textContent = theme === 'dark' ? '☀️' : '🌙';
+}
+
+function toggleTheme() {
+  const current = document.documentElement.getAttribute('data-theme') || 'light';
+  const next = current === 'dark' ? 'light' : 'dark';
+  applyTheme(next);
+  showToast(next === 'dark' ? 'تم تفعيل الوضع الليلي 🌙' : 'تم تفعيل الوضع النهاري ☀️', 'info', 2000);
+}
+window.toggleTheme = toggleTheme;
+
+// PWA Service Worker Registration & Deferred Prompt
+let deferredInstallPrompt = null;
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js').then((reg) => {
+      console.log('Khuta Service Worker registered successfully:', reg.scope);
+    }).catch((err) => {
+      console.warn('Khuta Service Worker registration failed:', err);
+    });
+  });
+}
+
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  deferredInstallPrompt = e;
+  const btn = document.getElementById('pwaInstallBtn');
+  if (btn) btn.style.display = 'inline-flex';
+});
+
+window.addEventListener('appinstalled', () => {
+  deferredInstallPrompt = null;
+  const btn = document.getElementById('pwaInstallBtn');
+  if (btn) btn.style.display = 'none';
+  showToast('تم تثبيت تطبيق خُطى بنجاح على جهازك! 🎉', 'success', 4000);
+});
+
+// Online / Offline Status Listeners
+window.addEventListener('online', () => {
+  const badge = document.getElementById('connBadge');
+  if (badge) {
+    badge.className = 'conn-badge online';
+    badge.textContent = '🟢 متصل';
+  }
+  showToast('تم استعادة الاتصال بالإنترنت 🟢', 'success', 2500);
+});
+
+window.addEventListener('offline', () => {
+  const badge = document.getElementById('connBadge');
+  if (badge) {
+    badge.className = 'conn-badge offline';
+    badge.textContent = '🔴 أوفلاين';
+  }
+  showToast('أنت في وضع عدم الاتصال (أوفلاين) 🔴 يمكنك مواصلة دراستك!', 'error', 4000);
+});
+
+// Global Live Pomodoro Timer State
+if (!window.khutaPomodoro) {
+  window.khutaPomodoro = {
+    mode: 'work', // 'work', 'short', 'long'
+    timeLeft: 25 * 60,
+    totalTime: 25 * 60,
+    isRunning: false,
+    intervalId: null,
+    sessionsToday: Number(localStorage.getItem('khuta_pomo_streak_' + new Date().toISOString().slice(0, 10)) || 0)
+  };
+}
+
+function updateTopbarPomo() {
+  const pill = document.getElementById('topbarPomodoro');
+  const span = document.getElementById('topbarPomoTime');
+  if (!span) return;
+  const p = window.khutaPomodoro;
+  const m = Math.floor(p.timeLeft / 60);
+  const s = p.timeLeft % 60;
+  span.textContent = `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+  if (pill) {
+    pill.classList.toggle('running', p.isRunning);
+    const modeEmoji = p.mode === 'work' ? '🎯' : p.mode === 'short' ? '☕' : '🌴';
+    pill.innerHTML = `${modeEmoji} <span id="topbarPomoTime">${span.textContent}</span>`;
+  }
+}
+
+function startGlobalPomodoro() {
+  const p = window.khutaPomodoro;
+  if (p.isRunning) return;
+  p.isRunning = true;
+  clearInterval(p.intervalId);
+  p.intervalId = setInterval(() => {
+    if (p.timeLeft > 0) {
+      p.timeLeft--;
+      updateTopbarPomo();
+      if (typeof window.onPomodoroTick === 'function') {
+        window.onPomodoroTick();
+      }
+    } else {
+      pauseGlobalPomodoro();
+      soundEffects.playTimerComplete();
+      if (p.mode === 'work') {
+        const todayKey = 'khuta_pomo_streak_' + new Date().toISOString().slice(0, 10);
+        p.sessionsToday = Number(localStorage.getItem(todayKey) || 0) + 1;
+        localStorage.setItem(todayKey, p.sessionsToday);
+        showToast(`أحسنت! أتممت جلسة تركيز كاملة 🔥 إجمالي اليوم: ${p.sessionsToday}`, 'success', 5000);
+      } else {
+        showToast('انتهى وقت الاستراحة! هل أنت جاهز لجلسة تركيز جديدة؟ 🎯', 'info', 4000);
+      }
+      if ('Notification' in window && Notification.permission === 'granted') {
+        new Notification('خُطى | مؤقت التركيز', {
+          body: p.mode === 'work' ? 'انتهت جلسة التركيز! استرح قليلاً.' : 'انتهت الاستراحة! حان وقت التركيز.',
+          icon: 'icon.svg'
+        });
+      }
+      if (typeof window.onPomodoroComplete === 'function') {
+        window.onPomodoroComplete();
+      }
+    }
+  }, 1000);
+  updateTopbarPomo();
+}
+
+function pauseGlobalPomodoro() {
+  const p = window.khutaPomodoro;
+  p.isRunning = false;
+  clearInterval(p.intervalId);
+  updateTopbarPomo();
+}
+
+function setGlobalPomodoroMode(mode) {
+  const p = window.khutaPomodoro;
+  pauseGlobalPomodoro();
+  p.mode = mode;
+  const mins = mode === 'work' ? 25 : mode === 'short' ? 5 : 15;
+  p.totalTime = mins * 60;
+  p.timeLeft = mins * 60;
+  updateTopbarPomo();
+}
+
+// Request Notification permission quietly on interaction
+document.addEventListener('click', () => {
+  if ('Notification' in window && Notification.permission === 'default') {
+    Notification.requestPermission().catch(() => {});
+  }
+}, { once: true });
+
 function normDay(str = "") {
   return String(str)
     .replace(/[أإآ]/g, "ا")
@@ -95,75 +352,129 @@ function shell({title, subtitle = "", active = ""}, content) {
   
   // Fetch user info to show/hide admin link
   const user = auth.currentUser;
-const data = { user: user ? { name: (state.userProfile && state.userProfile.name) || user.displayName || user.email.split('@')[0], role: (state.userProfile && state.userProfile.role) || 'user' } : null };
-if (true) {
-    const isAdmin = data.user && data.user.role === 'admin';
-    const adminLink = isAdmin ? `<a href="admin.html">لوحة المشرف</a>` : "";
-    const userName = data.user ? `<span style="margin-left:10px;">${data.user.name}</span>` : "";
+  const data = { user: user ? { name: (state.userProfile && state.userProfile.name) || user.displayName || user.email.split('@')[0], role: (state.userProfile && state.userProfile.role) || 'user' } : null };
+  const isAdmin = data.user && data.user.role === 'admin';
+  const adminLink = isAdmin ? `<a href="admin.html">لوحة المشرف</a>` : "";
+  const userName = data.user ? `<span style="margin-left:8px; font-weight:700;">${data.user.name}</span>` : "";
+  const currentTheme = getSavedTheme();
+  const isOnline = navigator.onLine;
 
-    appEl.innerHTML = `
-      <main class="container">
-        <header class="topbar">
-          <a class="brand" href="index.html">
-            <img src="logo.jpg" alt="Logo" style="height: 40px; border-radius: 5px; margin-left: 10px; mix-blend-mode: multiply;">
-            <span><b>خُطى</b><small>رفيقك نحو التفوق</small></span>
+  appEl.innerHTML = `
+    <main class="container">
+      <header class="topbar">
+        <a class="brand" href="index.html">
+          <img src="logo.jpg" alt="Logo" style="height: 40px; border-radius: 8px; margin-left: 10px; mix-blend-mode: multiply;">
+          <span><b>خُطى</b><small>رفيقك نحو التفوق</small></span>
+        </a>
+        <nav class="nav">
+          <a class="${active === "dashboard" ? "active" : ""}" href="index.html">الرئيسية</a>
+          <a class="${active === "subjects" || active === "subject" ? "active" : ""}" href="subjects.html">المواد</a>
+          <a class="${active === "weekly" ? "active" : ""}" href="weekly.html">الجدول</a>
+          <a class="${active === "exams" ? "active" : ""}" href="exams.html">الامتحانات</a>
+          <a class="${active === "channels" ? "active" : ""}" href="channels.html">القنوات</a>
+          <a class="${active === "tools" ? "active" : ""}" href="tools.html">الأدوات ⚡</a>
+          ${adminLink}
+        </nav>
+        <div class="top-actions">
+          <span id="connBadge" class="conn-badge ${isOnline ? 'online' : 'offline'}">${isOnline ? '🟢 متصل' : '🔴 أوفلاين'}</span>
+          <a id="topbarPomodoro" href="tools.html" class="topbar-pomo ${window.khutaPomodoro.isRunning ? 'running' : ''}" title="مؤقت التركيز">🎯 <span id="topbarPomoTime">25:00</span></a>
+          <button id="pwaInstallBtn" class="install-btn" style="${deferredInstallPrompt ? 'display:inline-flex;' : 'display:none;'}" title="تثبيت التطبيق على جهازك">📲 تثبيت</button>
+          <button id="themeToggle" class="theme-toggle-btn" title="تبديل المظهر">${currentTheme === 'dark' ? '☀️' : '🌙'}</button>
+          ${userName}
+          <button id="refresh" class="icon-btn" title="تحديث">↻</button>
+          <button id="logout" class="secondary">خروج</button>
+        </div>
+      </header>
+
+      <section class="page-heading">
+        <div>
+          <span class="eyebrow">خُطى | رفيقك نحو التفوق</span>
+          <h1>${title}</h1>
+          ${subtitle ? `<p>${subtitle}</p>` : ""}
+        </div>
+      </section>
+
+      <div id="error" class="error hidden"></div>
+      ${content}
+
+      <footer style="text-align: center; padding: 25px 20px; font-size: 0.9em; background: linear-gradient(135deg, #f0f7ff, #e6f0fa); color: #333; margin-top: 50px; border-top: 2px solid #cce0ff; border-radius: 14px;">
+        <strong style="color: #4285F4; font-size: 1.1em;">خُطى | رفيقك نحو التفوق</strong><br>
+        جميع الحقوق محفوظة المبرمج معاذ الصبوح &copy; ${new Date().getFullYear()}<br>
+        <div style="margin-top: 15px; display: flex; justify-content: center; gap: 20px; align-items: center;">
+          <a href="https://github.com/MoazAlsabouh/" target="_blank" title="GitHub">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="#333"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
           </a>
-          <nav class="nav">
-            <a class="${active === "dashboard" ? "active" : ""}" href="index.html">الرئيسية</a>
-            <a class="${active === "subjects" ? "active" : ""}" href="subjects.html">المواد</a>
-            <a class="${active === "weekly" ? "active" : ""}" href="weekly.html">الجدول</a>
-            <a class="${active === "exams" ? "active" : ""}" href="exams.html">الامتحانات</a>
-            <a class="${active === "channels" ? "active" : ""}" href="channels.html">القنوات</a>
-            ${adminLink}
-          </nav>
-          <div class="top-actions">
-            ${userName}
-            <button id="refresh" class="icon-btn" title="تحديث">↻</button>
-            <button id="logout" class="secondary">خروج</button>
-          </div>
-        </header>
-        <section class="page-heading">
-          <div>
-            <span class="eyebrow">خُطى | رفيقك نحو التفوق</span>
-            <h1>${title}</h1>
-            ${subtitle ? `<p>${subtitle}</p>` : ""}
-          </div>
-        </section>
-        <div id="error" class="error hidden"></div>
-        ${content}
-        <footer style="text-align: center; padding: 25px 20px; font-size: 0.9em; background: linear-gradient(135deg, #f0f7ff, #e6f0fa); color: #333; margin-top: 50px; border-top: 2px solid #cce0ff; border-radius: 10px 10px 0 0;">
-          <strong style="color: #4285F4; font-size: 1.1em;">خُطى | رفيقك نحو التفوق</strong><br>
-          جميع الحقوق محفوظة المبرمج معاذ الصبوح &copy; ${new Date().getFullYear()}<br>
-          <div style="margin-top: 15px; display: flex; justify-content: center; gap: 20px; align-items: center;">
-            <a href="https://github.com/MoazAlsabouh/" target="_blank" title="GitHub">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="#333"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
-            </a>
-            <a href="https://www.linkedin.com/in/moazalsabouh/" target="_blank" title="LinkedIn">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="#0077b5"><path d="M19 0h-14c-2.761 0-5 2.239-5 5v14c0 2.761 2.239 5 5 5h14c2.762 0 5-2.239 5-5v-14c0-2.761-2.238-5-5-5zm-11 19h-3v-11h3v11zm-1.5-12.268c-.966 0-1.75-.79-1.75-1.764s.784-1.764 1.75-1.764 1.75.79 1.75 1.764-.783 1.764-1.75 1.764zm13.5 12.268h-3v-5.604c0-3.368-4-3.113-4 0v5.604h-3v-11h3v1.765c1.396-2.586 7-2.777 7 2.476v6.759z"/></svg>
-            </a>
-            <a href="https://x.com/moazAlsabouh" target="_blank" title="X (Twitter)">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="#1da1f2"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
-            </a>
-          </div>
-        </footer>
-      </main>`;
+          <a href="https://linkedin.com/in/moazalsabouh/" target="_blank" title="LinkedIn">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="#0077b5"><path d="M19 0h-14c-2.761 0-5 2.239-5 5v14c0 2.761 2.239 5 5 5h14c2.762 0 5-2.239 5-5v-14c0-2.761-2.238-5-5-5zm-11 19h-3v-11h3v11zm-1.5-12.268c-.966 0-1.75-.79-1.75-1.764s.784-1.764 1.75-1.764 1.75.79 1.75 1.764-.783 1.764-1.75 1.764zm13.5 12.268h-3v-5.604c0-3.368-4-3.113-4 0v5.604h-3v-11h3v1.765c1.396-2.586 7-2.777 7 2.476v6.759z"/></svg>
+          </a>
+          <a href="https://x.com/moazAlsabouh" target="_blank" title="X">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="#1da1f2"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+          </a>
+        </div>
+      </footer>
 
-    const logoutBtn = $("logout");
-    if (logoutBtn) {
-      logoutBtn.onclick = async () => {
-        await signOut(auth);
-        location.href = "/login.html";
-      };
-    }
+      <!-- Mobile Bottom Navigation Bar -->
+      <nav class="mobile-bottom-nav">
+        <a class="${active === "dashboard" ? "active" : ""}" href="index.html">
+          <span class="nav-icon">🏠</span>
+          <span>الرئيسية</span>
+        </a>
+        <a class="${active === "subjects" || active === "subject" ? "active" : ""}" href="subjects.html">
+          <span class="nav-icon">📚</span>
+          <span>المواد</span>
+        </a>
+        <a class="${active === "weekly" ? "active" : ""}" href="weekly.html">
+          <span class="nav-icon">📅</span>
+          <span>الجدول</span>
+        </a>
+        <a class="${active === "exams" ? "active" : ""}" href="exams.html">
+          <span class="nav-icon">📝</span>
+          <span>الامتحانات</span>
+        </a>
+        <a class="${active === "tools" ? "active" : ""}" href="tools.html">
+          <span class="nav-icon">⚡</span>
+          <span>الأدوات</span>
+        </a>
+      </nav>
+    </main>`;
 
-    const refreshBtn = $("refresh");
-    if (refreshBtn) {
-      refreshBtn.onclick = () => location.reload();
-    }
+  updateTopbarPomo();
+
+  const themeBtn = $("themeToggle");
+  if (themeBtn) {
+    themeBtn.onclick = toggleTheme;
+  }
+
+  const pwaBtn = $("pwaInstallBtn");
+  if (pwaBtn) {
+    pwaBtn.onclick = async () => {
+      if (deferredInstallPrompt) {
+        deferredInstallPrompt.prompt();
+        const { outcome } = await deferredInstallPrompt.userChoice;
+        if (outcome === 'accepted') {
+          showToast('شكراً لتثبيت خُطى! استمتع بالدراسة الذكية 🎓', 'success');
+        }
+        deferredInstallPrompt = null;
+        pwaBtn.style.display = 'none';
+      } else {
+        showToast('لتثبيت التطبيق، اضغط على زر المشاركة أو إعدادات المتصفح ثم اختر "إضافة إلى الشاشة الرئيسية" 📲', 'info', 5000);
+      }
+    };
+  }
+
+  const logoutBtn = $("logout");
+  if (logoutBtn) {
+    logoutBtn.onclick = async () => {
+      await signOut(auth);
+      location.href = "login.html";
+    };
+  }
+
+  const refreshBtn = $("refresh");
+  if (refreshBtn) {
+    refreshBtn.onclick = () => location.reload();
   }
 }
-
-
 
 function showError(error) {
   const box = $("error");
@@ -963,6 +1274,10 @@ function renderWeekly(rows) {
     el.onchange = async () => {
       try {
         await updateDoc(doc(db, 'weeklyTasks', el.dataset.weekId), { done: el.checked, doneDate: el.checked ? new Date().toISOString() : null });
+        if (el.checked) {
+          soundEffects.playTaskDone();
+          showToast('تم إنجاز المهمة بنجاح! أحسنت 🔥');
+        }
         state.weekly = await fetchWeeklyTasks();
         renderWeekly(state.weekly);
         renderWeeklyActivity(await fetchWeeklyActivities());
@@ -1191,6 +1506,491 @@ async function channelsPage() {
   }
 }
 
+
+// ==========================================================
+// SUPER TOOLS SUITE PAGE (tools.html)
+// Focus Pomodoro, 3D Flashcards, Daily MIT Checklist, Quick Notes
+// ==========================================================
+
+const DEFAULT_FLASHCARDS = [
+  { id: 'fc1', subject: 'الفيزياء', q: 'ما هو قانون الدور الخاص للنواس الثقلي البسيط في السعات الصغيرة؟', a: 'T₀ = 2π √(l / g) حيث l طول الخيط و g تسارع الجاذبية الأرضية.', mastered: false },
+  { id: 'fc2', subject: 'الكيمياء', q: 'ما هي العوامل المؤثرة في سرعة التفاعل الكيميائي؟', a: 'طبيعة المواد المتفاعلة، التركيز، درجة الحرارة، مساحة السطح المعرض للتفاعل، والوسائط (المحفزات).', mastered: false },
+  { id: 'fc3', subject: 'اللغة العربية', q: 'ما الفرق بين الاستعارة التصريحية والمكنية؟', a: 'التصريحية: حُذف المشبه وصُرّح بلفظ المشبه به. المكنية: حُذف المشبه به ورُمز له بشيء من لوازمه.', mastered: false },
+  { id: 'fc4', subject: 'الرياضيات', q: 'ما هو مشتق التابع الأسي e^(u(x))؟', a: '(e^u)\' = u\' · e^u (مشتق الأس مضروباً في التابع الأسي نفسه).', mastered: false },
+  { id: 'fc5', subject: 'الفلسفة', q: 'ما هي الفكرة الجوهرية للوجودية عند سارتر؟', a: 'الوجود يسبق الماهية؛ الإنسان يوجد أولاً ثم يصنع جوهره وماهيته عبر اختياراته وأفعاله الحرة.', mastered: false }
+];
+
+async function toolsPage() {
+  shell({
+    title: "الأدوات الذكية ⚡",
+    subtitle: "حزمة أدوات الإنتاجية الفائقة: مؤقت بومودورو، بطاقات الاستذكار ثلاثية الأبعاد، أهداف اليوم، والمفكرة الفورية.",
+    active: "tools"
+  }, `
+    <div class="tools-grid">
+      <!-- Tool 1: Pomodoro Focus Timer -->
+      <section class="card pomodoro-card">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+          <h2 style="margin:0; font-size:20px;">🎯 مؤقت بومودورو للتركيز</h2>
+          <span id="pomoStreakBadge" class="pomo-streak-badge">🔥 إنجاز اليوم: ${window.khutaPomodoro.sessionsToday} جلسات</span>
+        </div>
+        <p class="muted" style="margin-top:0; font-size:13px;">طريقة 25 دقيقة تركيز تام تليها استراحة لتعزيز الاستيعاب والنشاط الذهني.</p>
+
+        <div class="pomodoro-modes">
+          <button class="pomo-mode-btn ${window.khutaPomodoro.mode === 'work' ? 'active' : ''}" data-mode="work">🎯 تركيز (25 د)</button>
+          <button class="pomo-mode-btn ${window.khutaPomodoro.mode === 'short' ? 'active' : ''}" data-mode="short">☕ استراحة قصيرة (5 د)</button>
+          <button class="pomo-mode-btn ${window.khutaPomodoro.mode === 'long' ? 'active' : ''}" data-mode="long">🌴 راحة مطولة (15 د)</button>
+        </div>
+
+        <div class="pomo-svg-wrap">
+          <svg class="pomo-svg" viewBox="0 0 220 220">
+            <circle class="pomo-circle-bg" cx="110" cy="110" r="100"></circle>
+            <circle id="pomoCircleProgress" class="pomo-circle-progress" cx="110" cy="110" r="100"></circle>
+          </svg>
+          <div class="pomo-inner-content">
+            <span id="pomoMainDisplay" class="pomo-time-display">25:00</span>
+            <span id="pomoStatusLabel" class="pomo-status-label">${window.khutaPomodoro.mode === 'work' ? 'جلسة دراسة وتركيز' : 'وقت استراحة وهدوء'}</span>
+          </div>
+        </div>
+
+        <div class="pomo-controls">
+          <button id="pomoToggleBtn" class="pomo-btn-main">${window.khutaPomodoro.isRunning ? '⏸ إيقاف مؤقت' : '▶ بدء التركيز'}</button>
+          <button id="pomoResetBtn" class="pomo-btn-sub" title="إعادة ضبط">↻</button>
+          <button id="pomoSkipBtn" class="pomo-btn-sub" title="تخطي الجلسة">⏭</button>
+        </div>
+      </section>
+
+      <!-- Tool 2: Interactive 3D Flashcards -->
+      <section class="card flashcards-card">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <div>
+            <h2 style="margin:0; font-size:20px;">🧠 بطاقات الاستذكار السريع</h2>
+            <p class="muted" style="margin:3px 0 0; font-size:13px;">انقر على البطاقة لقلبها واختبار حفظك للمفاهيم والمعادلات.</p>
+          </div>
+          <button id="addCardBtn" class="button outline" style="padding:6px 12px; font-size:12px;">+ بطاقة جديدة</button>
+        </div>
+
+        <div class="flashcard-wrapper" id="flashcardWrapper" title="انقر لقلب البطاقة">
+          <div class="flashcard" id="flashcardElement">
+            <div class="flashcard-face flashcard-front">
+              <span id="fcTag" class="flashcard-tag">المادة</span>
+              <p id="fcQuestion" class="flashcard-title">السؤال يظهر هنا...</p>
+              <span class="flashcard-tip">🔄 انقر للقلب وعرض الإجابة</span>
+            </div>
+            <div class="flashcard-face flashcard-back">
+              <span class="flashcard-tag" style="background:rgba(34,197,94,0.15); color:#16a34a;">الإجابة النموذجية</span>
+              <p id="fcAnswer" class="flashcard-title" style="font-size:16px;">الإجابة تظهر هنا...</p>
+              <span class="flashcard-tip">🔄 انقر للرجوع للسؤال</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="flashcard-eval-btns">
+          <button id="fcKnowBtn" class="eval-btn-know">عرفتها ✔️</button>
+          <button id="fcReviewBtn" class="eval-btn-review">أحتاج مراجعة 🔄</button>
+        </div>
+
+        <div class="flashcard-nav-row">
+          <button id="fcPrevBtn" class="button secondary" style="padding:6px 14px; font-size:12px;">السابق ➡️</button>
+          <span id="fcCounter" style="font-size:13px; font-weight:700; color:var(--muted);">1 من 5</span>
+          <button id="fcNextBtn" class="button secondary" style="padding:6px 14px; font-size:12px;">⬅️ التالي</button>
+        </div>
+      </section>
+
+      <!-- Tool 3: Daily MIT Checklist -->
+      <section class="card mit-card">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <div>
+            <h2 style="margin:0; font-size:20px;">🎯 أولويات وأهداف اليوم (MIT)</h2>
+            <p class="muted" style="margin:3px 0 0; font-size:13px;">ركّز على أهم 3 أهداف فقط لإنجازها اليوم دون تشتت.</p>
+          </div>
+          <span id="mitPercentBadge" style="font-size:14px; font-weight:800; color:var(--accent);">0%</span>
+        </div>
+
+        <div style="margin:14px 0 8px;">
+          ${bar(0, 'mit-progress-bar')}
+        </div>
+
+        <div class="mit-list" id="mitList">
+          <!-- Rendered dynamically -->
+        </div>
+      </section>
+
+      <!-- Tool 4: Auto-Save Quick Notes -->
+      <section class="card notes-card">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <div>
+            <h2 style="margin:0; font-size:20px;">📝 المفكرة السريعة (Auto-Save)</h2>
+            <p class="muted" style="margin:3px 0 0; font-size:13px;">اكتب ملاحظاتك وقوانينك ومعادلاتك؛ تُحفظ لحظياً في جهازك.</p>
+          </div>
+          <button id="copyNotesBtn" class="button secondary" style="padding:6px 12px; font-size:12px;">📋 نسخ الملاحظات</button>
+        </div>
+
+        <textarea id="quickNotesArea" class="notes-textarea" placeholder="اكتب هنا كل ما يخطر ببالك أثناء الدراسة: قوانين، تنبيهات، ملخصات سريعة..."></textarea>
+
+        <div class="notes-meta-bar">
+          <div style="display:flex; gap:14px;">
+            <span id="notesWordCount">0 كلمة</span>
+            <span id="notesCharCount">0 حرف</span>
+          </div>
+          <span id="notesSaveStatus" class="notes-status-badge">✓ تم الحفظ تلقائياً في المتصفح</span>
+        </div>
+      </section>
+    </div>
+
+    <!-- Modal for adding new flashcard -->
+    <div id="addCardModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); backdrop-filter:blur(6px); z-index:99999; align-items:center; justify-content:center; padding:16px;">
+      <div class="card" style="max-width:480px; width:100%; border-radius:18px; padding:24px;">
+        <h3 style="margin-top:0;">➕ إضافة بطاقة استذكار جديدة</h3>
+        <form id="newCardForm">
+          <label style="display:block; margin-bottom:10px;">
+            المادة الدراسية:
+            <input type="text" id="newCardSubject" required placeholder="مثال: الرياضيات، الفيزياء، الأدب" style="width:100%; padding:9px; border-radius:9px; margin-top:4px;">
+          </label>
+          <label style="display:block; margin-bottom:10px;">
+            السؤال أو المفهوم (الوجه الأمامي):
+            <textarea id="newCardQuestion" required rows="3" placeholder="اكتب السؤال أو المصطلح..." style="width:100%; padding:9px; border-radius:9px; margin-top:4px; font-family:inherit;"></textarea>
+          </label>
+          <label style="display:block; margin-bottom:16px;">
+            الإجابة أو الشرح (الوجه الخلفي):
+            <textarea id="newCardAnswer" required rows="3" placeholder="اكتب الإجابة النموذجية..." style="width:100%; padding:9px; border-radius:9px; margin-top:4px; font-family:inherit;"></textarea>
+          </label>
+          <div style="display:flex; justify-content:flex-end; gap:10px;">
+            <button type="button" id="cancelAddCardBtn" class="button secondary">إلغاء</button>
+            <button type="submit" class="button">حفظ البطاقة</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  `);
+
+  // ----------------------------------------------------
+  // Module 1: Pomodoro Logic
+  // ----------------------------------------------------
+  const pomoDisplay = $("pomoMainDisplay");
+  const pomoCircle = $("pomoCircleProgress");
+  const pomoToggleBtn = $("pomoToggleBtn");
+  const pomoStatusLabel = $("pomoStatusLabel");
+  const pomoStreakBadge = $("pomoStreakBadge");
+
+  function renderPomodoroUI() {
+    const p = window.khutaPomodoro;
+    const m = Math.floor(p.timeLeft / 60);
+    const s = p.timeLeft % 60;
+    const formatted = `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+    if (pomoDisplay) pomoDisplay.textContent = formatted;
+    if (pomoToggleBtn) pomoToggleBtn.textContent = p.isRunning ? '⏸ إيقاف مؤقت' : '▶ بدء التركيز';
+    if (pomoStatusLabel) pomoStatusLabel.textContent = p.mode === 'work' ? 'جلسة دراسة وتركيز 🎯' : 'وقت استراحة وهدوء ☕';
+    if (pomoStreakBadge) pomoStreakBadge.textContent = `🔥 إنجاز اليوم: ${p.sessionsToday} جلسات`;
+
+    // Circular stroke dashoffset calculation (Circumference = 2 * PI * 100 = 628.3)
+    if (pomoCircle) {
+      const circumference = 628.3;
+      const progress = p.totalTime > 0 ? (p.totalTime - p.timeLeft) / p.totalTime : 0;
+      const offset = circumference - (progress * circumference);
+      pomoCircle.style.strokeDashoffset = offset;
+      pomoCircle.style.stroke = p.mode === 'work' ? 'var(--accent)' : '#22c55e';
+    }
+    updateTopbarPomo();
+  }
+
+  window.onPomodoroTick = renderPomodoroUI;
+  window.onPomodoroComplete = () => {
+    renderPomodoroUI();
+  };
+
+  renderPomodoroUI();
+
+  if (pomoToggleBtn) {
+    pomoToggleBtn.onclick = () => {
+      soundEffects.init();
+      if (window.khutaPomodoro.isRunning) {
+        pauseGlobalPomodoro();
+      } else {
+        startGlobalPomodoro();
+      }
+      renderPomodoroUI();
+    };
+  }
+
+  const pomoResetBtn = $("pomoResetBtn");
+  if (pomoResetBtn) {
+    pomoResetBtn.onclick = () => {
+      setGlobalPomodoroMode(window.khutaPomodoro.mode);
+      renderPomodoroUI();
+      showToast('تمت إعادة ضبط المؤقت ↻', 'info', 1800);
+    };
+  }
+
+  const pomoSkipBtn = $("pomoSkipBtn");
+  if (pomoSkipBtn) {
+    pomoSkipBtn.onclick = () => {
+      const nextMode = window.khutaPomodoro.mode === 'work' ? 'short' : 'work';
+      setGlobalPomodoroMode(nextMode);
+      document.querySelectorAll('.pomo-mode-btn').forEach(b => {
+        b.classList.toggle('active', b.dataset.mode === nextMode);
+      });
+      renderPomodoroUI();
+      showToast(`تم التبديل إلى وضع ${nextMode === 'work' ? 'التركيز' : 'الاستراحة'} ⏭`, 'info', 2000);
+    };
+  }
+
+  document.querySelectorAll('.pomo-mode-btn').forEach(btn => {
+    btn.onclick = () => {
+      document.querySelectorAll('.pomo-mode-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      setGlobalPomodoroMode(btn.dataset.mode);
+      renderPomodoroUI();
+    };
+  });
+
+  // ----------------------------------------------------
+  // Module 2: 3D Flashcards Logic
+  // ----------------------------------------------------
+  let flashcards = [];
+  try {
+    const saved = localStorage.getItem('khuta_flashcards');
+    flashcards = saved ? JSON.parse(saved) : DEFAULT_FLASHCARDS;
+  } catch (e) {
+    flashcards = DEFAULT_FLASHCARDS;
+  }
+
+  let currentCardIndex = 0;
+  const fcWrapper = $("flashcardWrapper");
+  const fcCard = $("flashcardElement");
+  const fcTag = $("fcTag");
+  const fcQ = $("fcQuestion");
+  const fcA = $("fcAnswer");
+  const fcCounter = $("fcCounter");
+
+  function renderCard() {
+    if (!flashcards.length) {
+      if (fcQ) fcQ.textContent = 'لا توجد بطاقات بعد. انقر على "+ بطاقة جديدة" لإضافة أول بطاقة!';
+      if (fcA) fcA.textContent = '—';
+      if (fcTag) fcTag.textContent = 'جديد';
+      if (fcCounter) fcCounter.textContent = '0 من 0';
+      return;
+    }
+    currentCardIndex = Math.max(0, Math.min(currentCardIndex, flashcards.length - 1));
+    const card = flashcards[currentCardIndex];
+    if (fcCard) fcCard.classList.remove('flipped');
+    if (fcTag) fcTag.textContent = card.subject || 'مادة عامة';
+    if (fcQ) fcQ.textContent = card.q;
+    if (fcA) fcA.textContent = card.a;
+    if (fcCounter) fcCounter.textContent = `${currentCardIndex + 1} من ${flashcards.length}`;
+  }
+
+  renderCard();
+
+  if (fcWrapper && fcCard) {
+    fcWrapper.onclick = () => {
+      soundEffects.playCardFlip();
+      fcCard.classList.toggle('flipped');
+    };
+  }
+
+  const fcNext = $("fcNextBtn");
+  if (fcNext) {
+    fcNext.onclick = () => {
+      if (currentCardIndex < flashcards.length - 1) {
+        currentCardIndex++;
+        renderCard();
+      }
+    };
+  }
+
+  const fcPrev = $("fcPrevBtn");
+  if (fcPrev) {
+    fcPrev.onclick = () => {
+      if (currentCardIndex > 0) {
+        currentCardIndex--;
+        renderCard();
+      }
+    };
+  }
+
+  const fcKnow = $("fcKnowBtn");
+  if (fcKnow) {
+    fcKnow.onclick = () => {
+      if (flashcards[currentCardIndex]) {
+        flashcards[currentCardIndex].mastered = true;
+        localStorage.setItem('khuta_flashcards', JSON.stringify(flashcards));
+        soundEffects.playTaskDone();
+        showToast('ممتاز! تم تأكيد حفظ هذا المفهوم ✔️', 'success', 2000);
+        if (currentCardIndex < flashcards.length - 1) {
+          currentCardIndex++;
+          renderCard();
+        }
+      }
+    };
+  }
+
+  const fcReview = $("fcReviewBtn");
+  if (fcReview) {
+    fcReview.onclick = () => {
+      if (flashcards[currentCardIndex]) {
+        flashcards[currentCardIndex].mastered = false;
+        localStorage.setItem('khuta_flashcards', JSON.stringify(flashcards));
+        showToast('تم تعليم البطاقة للمراجعة لاحقاً 🔄', 'info', 2000);
+        if (currentCardIndex < flashcards.length - 1) {
+          currentCardIndex++;
+          renderCard();
+        }
+      }
+    };
+  }
+
+  // Add Card Modal Handlers
+  const addCardModal = $("addCardModal");
+  const addCardBtn = $("addCardBtn");
+  const cancelAddCardBtn = $("cancelAddCardBtn");
+  const newCardForm = $("newCardForm");
+
+  if (addCardBtn && addCardModal) {
+    addCardBtn.onclick = () => {
+      addCardModal.style.display = 'flex';
+      $("newCardSubject").focus();
+    };
+  }
+
+  if (cancelAddCardBtn && addCardModal) {
+    cancelAddCardBtn.onclick = () => {
+      addCardModal.style.display = 'none';
+      if (newCardForm) newCardForm.reset();
+    };
+  }
+
+  if (newCardForm) {
+    newCardForm.onsubmit = (e) => {
+      e.preventDefault();
+      const subject = $("newCardSubject").value.trim();
+      const q = $("newCardQuestion").value.trim();
+      const a = $("newCardAnswer").value.trim();
+      if (!q || !a) return;
+      const newCard = { id: 'fc_' + Date.now(), subject, q, a, mastered: false };
+      flashcards.push(newCard);
+      localStorage.setItem('khuta_flashcards', JSON.stringify(flashcards));
+      currentCardIndex = flashcards.length - 1;
+      renderCard();
+      addCardModal.style.display = 'none';
+      newCardForm.reset();
+      showToast('تمت إضافة بطاقة الاستذكار بنجاح! 🧠✨', 'success');
+    };
+  }
+
+  // ----------------------------------------------------
+  // Module 3: Daily MIT Checklist Logic
+  // ----------------------------------------------------
+  const todayDateStr = new Date().toISOString().slice(0, 10);
+  const mitStorageKey = 'khuta_mit_' + todayDateStr;
+  let dailyMit = [];
+  try {
+    const savedMit = localStorage.getItem(mitStorageKey);
+    dailyMit = savedMit ? JSON.parse(savedMit) : [
+      { id: 1, text: 'إنهاء مراجعة الدرس الأول بتركيز عالي', done: false },
+      { id: 2, text: 'حل مسألتين تدريبيتين على الأقل', done: false },
+      { id: 3, text: 'تلخيص وحفظ المفاهيم الرئيسية في المفكرة', done: false }
+    ];
+  } catch (e) {
+    dailyMit = [
+      { id: 1, text: 'إنهاء مراجعة الدرس الأول بتركيز عالي', done: false },
+      { id: 2, text: 'حل مسألتين تدريبيتين على الأقل', done: false },
+      { id: 3, text: 'تلخيص وحفظ المفاهيم الرئيسية في المفكرة', done: false }
+    ];
+  }
+
+  function renderMitUI() {
+    const listEl = $("mitList");
+    if (!listEl) return;
+    const completedCount = dailyMit.filter(t => t.done).length;
+    const percent = Math.round((completedCount / dailyMit.length) * 100);
+    const badge = $("mitPercentBadge");
+    if (badge) badge.textContent = `${completedCount} من ${dailyMit.length} منجز (${percent}%)`;
+
+    const barEl = document.querySelector('.mit-progress-bar span');
+    if (barEl) barEl.style.width = `${percent}%`;
+
+    listEl.innerHTML = dailyMit.map((item, idx) => `
+      <div class="mit-item ${item.done ? 'done' : ''}">
+        <input type="checkbox" class="mit-checkbox" data-idx="${idx}" ${item.done ? 'checked' : ''}>
+        <input type="text" class="mit-input" data-idx="${idx}" value="${esc(item.text)}" placeholder="الهدف رقم ${idx + 1}...">
+      </div>
+    `).join("");
+
+    listEl.querySelectorAll('.mit-checkbox').forEach(cb => {
+      cb.onchange = (e) => {
+        const i = Number(e.target.dataset.idx);
+        dailyMit[i].done = e.target.checked;
+        localStorage.setItem(mitStorageKey, JSON.stringify(dailyMit));
+        if (e.target.checked) {
+          soundEffects.playTaskDone();
+          showToast(`رائع! حققت هدفك اليومي رقم ${i + 1} 🎯✨`, 'success');
+        }
+        renderMitUI();
+      };
+    });
+
+    listEl.querySelectorAll('.mit-input').forEach(inp => {
+      inp.onchange = (e) => {
+        const i = Number(e.target.dataset.idx);
+        dailyMit[i].text = e.target.value.trim();
+        localStorage.setItem(mitStorageKey, JSON.stringify(dailyMit));
+      };
+    });
+  }
+
+  renderMitUI();
+
+  // ----------------------------------------------------
+  // Module 4: Auto-Save Quick Notes Logic
+  // ----------------------------------------------------
+  const notesArea = $("quickNotesArea");
+  const wordCountSpan = $("notesWordCount");
+  const charCountSpan = $("notesCharCount");
+  const saveStatusSpan = $("notesSaveStatus");
+  const copyBtn = $("copyNotesBtn");
+
+  if (notesArea) {
+    notesArea.value = localStorage.getItem('khuta_quick_notes') || '';
+    
+    function updateNotesStats() {
+      const text = notesArea.value;
+      const chars = text.length;
+      const words = text.trim() ? text.trim().split(/\s+/).length : 0;
+      if (wordCountSpan) wordCountSpan.textContent = `${words} كلمة`;
+      if (charCountSpan) charCountSpan.textContent = `${chars} حرف`;
+    }
+
+    updateNotesStats();
+
+    let saveTimeout = null;
+    notesArea.oninput = () => {
+      updateNotesStats();
+      if (saveStatusSpan) saveStatusSpan.textContent = '⏳ جاري الحفظ...';
+      clearTimeout(saveTimeout);
+      saveTimeout = setTimeout(() => {
+        localStorage.setItem('khuta_quick_notes', notesArea.value);
+        if (saveStatusSpan) saveStatusSpan.textContent = '✓ تم الحفظ تلقائياً في المتصفح';
+      }, 350);
+    };
+  }
+
+  if (copyBtn && notesArea) {
+    copyBtn.onclick = async () => {
+      if (!notesArea.value.trim()) {
+        showToast('المفكرة فارغة حالياً 📝', 'info', 2000);
+        return;
+      }
+      try {
+        await navigator.clipboard.writeText(notesArea.value);
+        showToast('تم نسخ الملاحظات إلى الحافظة بنجاح 📋✨', 'success');
+      } catch (err) {
+        showToast('تعذر النسخ التلقائي، يمكنك نسخه يدوياً', 'info');
+      }
+    };
+  }
+}
+
+
 onAuthStateChanged(auth, async (user) => {
   if (!user) {
     window.location.href = "login.html";
@@ -1205,6 +2005,7 @@ onAuthStateChanged(auth, async (user) => {
     if (page === "weekly") return await weeklyPage();
     if (page === "exams") return await examsPage();
     if (page === "channels") return await channelsPage();
+    if (page === "tools") return await toolsPage();
   } catch (err) {
     showError(err);
   }
