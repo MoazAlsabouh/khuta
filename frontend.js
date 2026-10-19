@@ -328,6 +328,23 @@ document.addEventListener('click', () => {
 }, { once: true });
 
 
+
+const ADMIN_EMAILS = [
+  "moazsabouh963@gmail.com",
+  "ibrahaem005@gmail.com",
+  "moaz01moaz@gmail.com"
+];
+
+function isUserAdmin(user = auth.currentUser, userProfile = state.userProfile) {
+  if (!user && !userProfile) return false;
+  if (userProfile && (userProfile.role === 'admin' || userProfile.isAdmin === true)) return true;
+  const email = ((user && user.email) || (userProfile && userProfile.email) || "").toLowerCase().trim();
+  if (email && ADMIN_EMAILS.includes(email)) return true;
+  const name = ((userProfile && userProfile.name) || (user && user.displayName) || "").trim();
+  if (name && (name.includes("معاذ الصبوح") || name.includes("Moaz Alsabouh") || name.includes("moazalsabouh"))) return true;
+  return false;
+}
+
 function toDateStr(d) {
   if (!d) return "";
   const dateObj = (d instanceof Date) ? d : new Date(d);
@@ -409,10 +426,10 @@ function shell({title, subtitle = "", active = ""}, content) {
   
   // Fetch user info to show/hide admin link
   const user = auth.currentUser;
-  const data = { user: user ? { name: (state.userProfile && state.userProfile.name) || user.displayName || user.email.split('@')[0], role: (state.userProfile && state.userProfile.role) || 'user' } : null };
-  const isAdmin = data.user && data.user.role === 'admin';
-  const adminLink = isAdmin ? `<a href="admin.html">لوحة المشرف</a>` : "";
-  const userName = data.user ? `<span style="margin-left:8px; font-weight:700;">${data.user.name}</span>` : "";
+  const isAdmin = isUserAdmin(user, state.userProfile);
+  const adminLink = isAdmin ? `<a class="${active === "admin" ? "active" : ""}" href="admin.html" style="font-weight: 700; color: var(--accent);">لوحة المشرف</a>` : "";
+  const nameDisplay = (state.userProfile && state.userProfile.name) || user?.displayName || user?.email?.split('@')[0] || "المستخدم";
+  const userName = user ? `<span style="margin-left:8px; font-weight:700;">${nameDisplay}</span>` : "";
   const currentTheme = getSavedTheme();
   const isOnline = navigator.onLine;
 
@@ -2175,19 +2192,22 @@ onAuthStateChanged(auth, async (user) => {
     window.location.href = "login.html";
     return;
   }
+  // Load user profile first so state.userProfile is available across all pages
+  state.userProfile = await fetchUserProfile();
+
   const init = async () => {
-  hideError();
-  try {
-    if (page === "dashboard") return await dashboardPage();
-    if (page === "subjects") return await subjectsPage();
-    if (page === "subject") return await subjectPage();
-    if (page === "weekly") return await weeklyPage();
-    if (page === "exams") return await examsPage();
-    if (page === "channels") return await channelsPage();
-    if (page === "tools") return await toolsPage();
-  } catch (err) {
-    showError(err);
-  }
-};
-init();
+    hideError();
+    try {
+      if (page === "dashboard") return await dashboardPage();
+      if (page === "subjects") return await subjectsPage();
+      if (page === "subject") return await subjectPage();
+      if (page === "weekly") return await weeklyPage();
+      if (page === "exams") return await examsPage();
+      if (page === "channels") return await channelsPage();
+      if (page === "tools") return await toolsPage();
+    } catch (err) {
+      showError(err);
+    }
+  };
+  await init();
 });

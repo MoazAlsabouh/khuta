@@ -16,6 +16,12 @@
     button { padding: 8px 16px; background: #4CAF50; color: white; border: none; border-radius: 4px; cursor: pointer; }
     button:hover { background: #45a049; }
     a { color: #4CAF50; text-decoration: none; }
+  
+    [data-theme="dark"] body { background: #0b1120; color: #f8fafc; }
+    [data-theme="dark"] .admin-card, [data-theme="dark"] .stat-box { background: rgba(21, 31, 50, 0.85); border: 1px solid rgba(255, 255, 255, 0.08); color: #f8fafc; box-shadow: 0 4px 14px rgba(0,0,0,0.4); }
+    [data-theme="dark"] th, [data-theme="dark"] td { border-bottom-color: rgba(255, 255, 255, 0.08); color: #f8fafc; }
+    [data-theme="dark"] .stat-box p { color: #94a3b8; }
+
   </style>
 
   <link rel="icon" type="image/jpeg" href="logo.jpg">
@@ -36,7 +42,7 @@
   <div style="max-width: 1000px; margin: 0 auto;">
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
       <h2>لوحة تحكم المشرف</h2>
-      <a href="/index.html">العودة للمنصة &rarr;</a>
+      <a href="index.html">العودة للمنصة &rarr;</a>
     </div>
 
     <div class="stats" id="statsContainer">
@@ -102,7 +108,7 @@
       if (user) {
         fetchAdminData();
       } else {
-        location.href = '/login.html';
+        location.href = 'login.html';
       }
     });
   </script>

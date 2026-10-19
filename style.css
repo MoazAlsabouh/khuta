@@ -86,16 +86,19 @@ margin-top: 3px;
 .nav {
 display: flex;
 justify-content: center;
-gap: 5px;
-flex-wrap: wrap;
+align-items: center;
+gap: 4px;
+flex-wrap: nowrap;
 }
 
 .nav a {
-padding: 9px 13px;
+padding: 7px 11px;
 border-radius: 10px;
 text-decoration: none;
 color: var(--muted);
 font-size: 13px;
+font-weight: 600;
+white-space: nowrap;
 transition: all 0.2s ease;
 }
 
@@ -1789,3 +1792,90 @@ font-size: 9px;
 [data-theme="dark"] .activity-cell.activity-3 { background: #26a641 !important; border-color: #26a641 !important; }
 [data-theme="dark"] .activity-cell.activity-4 { background: #39d353 !important; border-color: #39d353 !important; }
 [data-theme="dark"] .activity-cell.activity-5 { background: #56e36d !important; border-color: #56e36d !important; }
+
+
+/* ==========================================================
+   DARK MODE OVERRIDES FOR WEEKLY ACTIVITY & CARDS
+   ========================================================== */
+[data-theme="dark"] .activity-summary div {
+  background: rgba(30, 41, 59, 0.85) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25) !important;
+}
+
+[data-theme="dark"] .activity-summary strong {
+  color: #f8fafc !important;
+}
+
+[data-theme="dark"] .activity-summary span {
+  color: #94a3b8 !important;
+}
+
+[data-theme="dark"] .current-week-badge {
+  background: rgba(99, 102, 241, 0.2) !important;
+  color: #c7d2fe !important;
+  border: 1px solid rgba(99, 102, 241, 0.35) !important;
+}
+
+[data-theme="dark"] .activity-details > div {
+  background: rgba(30, 41, 59, 0.85) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  color: #94a3b8 !important;
+}
+
+[data-theme="dark"] .activity-details b {
+  color: #f8fafc !important;
+}
+
+[data-theme="dark"] .activity-weekdays span {
+  color: #94a3b8 !important;
+}
+
+[data-theme="dark"] .activity-month-label {
+  color: #94a3b8 !important;
+}
+
+[data-theme="dark"] .activity-legend span {
+  color: #94a3b8 !important;
+}
+
+[data-theme="dark"] .checks label {
+  background: rgba(30, 41, 59, 0.6) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  color: #cbd5e1 !important;
+}
+
+[data-theme="dark"] .summary-progress {
+  background: rgba(30, 41, 59, 0.6) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+}
+
+[data-theme="dark"] .day-block {
+  background: rgba(21, 31, 50, 0.85) !important;
+  border-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+[data-theme="dark"] .day-block.today {
+  border-color: rgba(99, 102, 241, 0.6) !important;
+  box-shadow: 0 0 16px rgba(99, 102, 241, 0.2) !important;
+}
+
+[data-theme="dark"] .day-head h3 {
+  color: #f8fafc !important;
+}
+
+[data-theme="dark"] .day-head span {
+  color: #94a3b8 !important;
+}
+
+[data-theme="dark"] .task-row {
+  border-top-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+[data-theme="dark"] .task-row span {
+  color: #f8fafc !important;
+}
+
+[data-theme="dark"] .task-row small {
+  color: #94a3b8 !important;
+}
