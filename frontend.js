@@ -302,7 +302,7 @@ function startGlobalPomodoro() {
       if ('Notification' in window && Notification.permission === 'granted') {
         new Notification('خُطى | مؤقت التركيز', {
           body: p.mode === 'work' ? 'انتهت جلسة التركيز! استرح قليلاً.' : 'انتهت الاستراحة! حان وقت التركيز.',
-          icon: 'icon.svg'
+          icon: 'logo.jpg'
         });
       }
       if (typeof window.onPomodoroComplete === 'function') {
@@ -431,7 +431,7 @@ function shell({title, subtitle = "", active = ""}, content) {
   const isAdmin = isUserAdmin(user, state.userProfile);
   const adminLink = isAdmin ? `<a class="${active === "admin" ? "active" : ""}" href="admin.html" style="font-weight: 700; color: var(--accent);">لوحة المشرف</a>` : "";
   const nameDisplay = (state.userProfile && state.userProfile.name) || user?.displayName || user?.email?.split('@')[0] || "المستخدم";
-  const userName = user ? `<span style="margin-left:8px; font-weight:700;">${nameDisplay}</span>` : "";
+  const userName = user ? `<span class="user-badge" title="${attr(nameDisplay)}">${esc(nameDisplay)}</span>` : "";
   const currentTheme = getSavedTheme();
   const isOnline = navigator.onLine;
 
@@ -439,8 +439,8 @@ function shell({title, subtitle = "", active = ""}, content) {
     <main class="container">
       <header class="topbar">
         <a class="brand" href="index.html">
-          <img src="logo.jpg" alt="Logo" style="height: 40px; border-radius: 8px; margin-left: 10px; mix-blend-mode: multiply;">
-          <span><b>خُطى</b><small>رفيقك نحو التفوق</small></span>
+          <img src="logo.jpg" alt="Logo" class="brand-logo-img">
+          <span class="brand-text"><b>خُطى</b><small>رفيقك نحو التفوق</small></span>
         </a>
         <nav class="nav">
           <a class="${active === "dashboard" ? "active" : ""}" href="index.html">الرئيسية</a>
@@ -458,7 +458,7 @@ function shell({title, subtitle = "", active = ""}, content) {
           <button id="themeToggle" class="theme-toggle-btn" title="تبديل المظهر">${currentTheme === 'dark' ? '☀️' : '🌙'}</button>
           ${userName}
           <button id="refresh" class="icon-btn" title="تحديث">↻</button>
-          <button id="logout" class="secondary">خروج</button>
+          <button id="logout" class="secondary logout-btn">خروج</button>
         </div>
       </header>
 
@@ -506,6 +506,10 @@ function shell({title, subtitle = "", active = ""}, content) {
         <a class="${active === "exams" ? "active" : ""}" href="exams.html">
           <span class="nav-icon">📝</span>
           <span>الامتحانات</span>
+        </a>
+        <a class="${active === "channels" ? "active" : ""}" href="channels.html">
+          <span class="nav-icon">🎥</span>
+          <span>القنوات</span>
         </a>
         <a class="${active === "tools" ? "active" : ""}" href="tools.html">
           <span class="nav-icon">⚡</span>
