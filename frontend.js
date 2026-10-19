@@ -327,6 +327,63 @@ document.addEventListener('click', () => {
   }
 }, { once: true });
 
+
+function toDateStr(d) {
+  if (!d) return "";
+  const dateObj = (d instanceof Date) ? d : new Date(d);
+  if (isNaN(dateObj.getTime())) return "";
+  const y = dateObj.getFullYear();
+  const m = String(dateObj.getMonth() + 1).padStart(2, "0");
+  const day = String(dateObj.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+function getCurrentWeekWindow() {
+  const now = new Date();
+  const startDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  startDay.setDate(startDay.getDate() - ((startDay.getDay() + 2) % 7)); // Align to Friday
+  const endDay = new Date(startDay);
+  endDay.setDate(startDay.getDate() + 6); // Thursday
+  return {
+    start: toDateStr(startDay),
+    end: toDateStr(endDay)
+  };
+}
+
+function getAcademicWeeks() {
+  const academicYearStart = new Date(2026, 7, 28); // Friday Aug 28, 2026
+  const weeks = [];
+  for (let i = 0; i < 52; i++) {
+    const start = new Date(academicYearStart);
+    start.setDate(start.getDate() + (i * 7));
+    const end = new Date(start);
+    end.setDate(end.getDate() + 6);
+    weeks.push({
+      start: toDateStr(start),
+      end: toDateStr(end),
+      completed: 0,
+      total: 0,
+      percent: 0,
+      days: {}
+    });
+  }
+  return weeks;
+}
+
+function getTodayWeekdayKey() {
+  const dayNum = new Date().getDay();
+  const map = {
+    5: "الجمعة",
+    6: "السبت",
+    0: "الأحد",
+    1: "الإثنين",
+    2: "الثلاثاء",
+    3: "الأربعاء",
+    4: "الخميس"
+  };
+  return map[dayNum] || "الجمعة";
+}
+
 function normDay(str = "") {
   return String(str)
     .replace(/[أإآ]/g, "ا")
@@ -529,67 +586,172 @@ async function fetchChannels() {
   return snap.docs.map(d => ({ id: d.id, ...d.data() }));
 }
 
+async function saveWeeklyActivitySnapshot() {
+  if (!auth.currentUser) return;
+  const currentWindow = getCurrentWeekWindow();
+  const docId = `${auth.currentUser.uid}_${currentWindow.start}`;
+  
+  const daysMap = {};
+  let weekCompleted = 0;
+  let weekTotal = 0;
+  
+  WEEKDAYS.forEach((dayObj, dayIdx) => {
+    const tasks = getTasksForDay(dayObj.key, state.weekly);
+    const total = tasks.length;
+    const completed = tasks.filter(t => t.done).length;
+    const percent = total > 0 ? Math.round((completed / total) * 100) : 0;
+    
+    weekTotal += total;
+    weekCompleted += completed;
+    
+    const dayStat = { completed, total, percent };
+    daysMap[dayObj.key] = dayStat;
+    daysMap[normDay(dayObj.key)] = dayStat;
+    daysMap[dayIdx] = dayStat;
+  });
+  
+  const weekPercent = weekTotal > 0 ? Math.round((weekCompleted / weekTotal) * 100) : 0;
+  
+  const data = {
+    user: auth.currentUser.uid,
+    start: currentWindow.start,
+    end: currentWindow.end,
+    completed: weekCompleted,
+    total: weekTotal,
+    percent: weekPercent,
+    days: daysMap,
+    updatedAt: new Date().toISOString()
+  };
+  
+  try {
+    await setDoc(doc(db, "weeklyActivity", docId), data, { merge: true });
+  } catch (err) {
+    console.error("Error saving weeklyActivity:", err);
+  }
+}
+
 async function fetchWeeklyTasks() {
   if (!auth.currentUser) return [];
   const q = query(collection(db, "weeklyTasks"), where("user", "==", auth.currentUser.uid));
   const snap = await getDocs(q);
   const tasks = snap.docs.map(d => ({ id: d.id, ...d.data() }));
 
-  const now = new Date();
-  const startOfWeek = new Date(now);
-  startOfWeek.setDate(now.getDate() - ((now.getDay() + 2) % 7)); // Align to Friday
-  startOfWeek.setHours(0,0,0,0);
+  const currentWindow = getCurrentWeekWindow();
+  const startOfWeek = new Date(currentWindow.start + "T00:00:00");
   
-  for (const t of tasks) {
-    if (t.done && t.doneDate) {
-      if (new Date(t.doneDate) < startOfWeek) {
-        t.done = false;
-        t.doneDate = null;
-        updateDoc(doc(db, 'weeklyTasks', t.id), { done: false, doneDate: null }).catch(e=>console.error(e));
+  // Tasks completed before the start of the current week (Friday)
+  const pastCompleted = tasks.filter(t => t.done && t.doneDate && new Date(t.doneDate) < startOfWeek);
+  
+  if (pastCompleted.length > 0) {
+    // Archive past completed tasks before resetting
+    const pastWeeks = {};
+    pastCompleted.forEach(t => {
+      const d = new Date(t.doneDate);
+      const f = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+      f.setDate(f.getDate() - ((f.getDay() + 2) % 7));
+      const wStart = toDateStr(f);
+      if (!pastWeeks[wStart]) pastWeeks[wStart] = [];
+      pastWeeks[wStart].push(t);
+    });
+    
+    for (const [wStart, pTasks] of Object.entries(pastWeeks)) {
+      const docId = `${auth.currentUser.uid}_${wStart}`;
+      try {
+        const existing = await getDoc(doc(db, "weeklyActivity", docId));
+        if (!existing.exists()) {
+          const st = new Date(wStart + "T00:00:00");
+          const en = new Date(st);
+          en.setDate(en.getDate() + 6);
+          const daysMap = {};
+          WEEKDAYS.forEach((dObj, idx) => {
+            const dTasks = pTasks.filter(pt => normDay(pt.day) === normDay(dObj.key));
+            const stat = { completed: dTasks.length, total: dTasks.length, percent: dTasks.length > 0 ? 100 : 0 };
+            daysMap[dObj.key] = stat;
+            daysMap[normDay(dObj.key)] = stat;
+            daysMap[idx] = stat;
+          });
+          await setDoc(doc(db, "weeklyActivity", docId), {
+            user: auth.currentUser.uid,
+            start: wStart,
+            end: toDateStr(en),
+            completed: pTasks.length,
+            total: pTasks.length,
+            percent: 100,
+            days: daysMap,
+            updatedAt: new Date().toISOString()
+          }, { merge: true });
+        }
+      } catch (e) {
+        console.warn("Archive error:", e);
       }
     }
+    
+    // Safely reset checkboxes for the new week
+    for (const t of pastCompleted) {
+      t.done = false;
+      t.doneDate = null;
+      updateDoc(doc(db, 'weeklyTasks', t.id), { done: false, doneDate: null }).catch(e => console.error(e));
+    }
   }
+
   return tasks;
 }
 
 async function fetchWeeklyActivities() {
   if (!auth.currentUser) return { weeks: [], current: null, window: {} };
   
-  const q = query(collection(db, "weeklyActivity"), where("user", "==", auth.currentUser.uid));
-  const snap = await getDocs(q);
-  const activities = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  const currentWindow = getCurrentWeekWindow();
+  const weeks = getAcademicWeeks();
   
-  // Generate 52 weeks starting from Sunday, Aug 30, 2026
-  const academicYearStart = new Date("2026-08-28T00:00:00Z");
-  const weeks = [];
-  for (let i = 0; i < 52; i++) {
-    const start = new Date(academicYearStart);
-    start.setUTCDate(start.getUTCDate() + (i * 7));
-    const end = new Date(start);
-    end.setUTCDate(end.getUTCDate() + 6);
-    
-    const startStr = start.toISOString().slice(0, 10);
-    const endStr = end.toISOString().slice(0, 10);
-    
-    const saved = activities.find(a => a.start === startStr);
-    weeks.push({
-      start: startStr,
-      end: endStr,
-      completed: saved ? saved.completed : 0,
-      percent: saved ? saved.percent : 0,
-      days: saved ? saved.days : {}
-    });
+  let savedActivities = [];
+  try {
+    const q = query(collection(db, "weeklyActivity"), where("user", "==", auth.currentUser.uid));
+    const snap = await getDocs(q);
+    savedActivities = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  } catch (err) {
+    console.warn("Could not fetch weeklyActivity:", err);
   }
   
-  const now = new Date();
-  const startDay = new Date(now);
-  startDay.setDate(now.getDate() - ((now.getDay() + 2) % 7)); // Align to Friday
-  startDay.setHours(0,0,0,0);
-  const endDay = new Date(startDay);
-  endDay.setDate(startDay.getDate() + 6);
+  // Real-time calculation for the current week from state.weekly
+  const currentDaysMap = {};
+  let currentWeekCompleted = 0;
+  let currentWeekTotal = 0;
   
-  const currentWindow = { start: startDay.toISOString().slice(0, 10), end: endDay.toISOString().slice(0, 10) };
-  let current = weeks.find(a => a.start === currentWindow.start);
+  WEEKDAYS.forEach((dayObj, dayIdx) => {
+    const tasks = getTasksForDay(dayObj.key, state.weekly);
+    const total = tasks.length;
+    const completed = tasks.filter(t => t.done).length;
+    const percent = total > 0 ? Math.round((completed / total) * 100) : 0;
+    
+    currentWeekTotal += total;
+    currentWeekCompleted += completed;
+    
+    const stat = { completed, total, percent };
+    currentDaysMap[dayObj.key] = stat;
+    currentDaysMap[normDay(dayObj.key)] = stat;
+    currentDaysMap[dayIdx] = stat;
+  });
+  const currentWeekPercent = currentWeekTotal > 0 ? Math.round((currentWeekCompleted / currentWeekTotal) * 100) : 0;
+  
+  weeks.forEach(w => {
+    const isCurrent = w.start === currentWindow.start;
+    if (isCurrent) {
+      w.completed = currentWeekCompleted;
+      w.total = currentWeekTotal;
+      w.percent = currentWeekPercent;
+      w.days = currentDaysMap;
+    } else {
+      const saved = savedActivities.find(a => a.start === w.start);
+      if (saved) {
+        w.completed = Number(saved.completed || 0);
+        w.total = Number(saved.total || 0);
+        w.percent = Number(saved.percent || 0);
+        w.days = saved.days || {};
+      }
+    }
+  });
+  
+  const current = weeks.find(w => w.start === currentWindow.start);
   
   return { weeks, current, window: currentWindow };
 }
@@ -754,7 +916,8 @@ function renderDashboard(d, examsList = []) {
           </article>
         `).join("")}
       </div>
-    </section>`);
+    </section>
+    <div id="weeklyActivity" style="margin-top: 24px;"></div>`);
 
   if (upcoming) {
     clearInterval(state.examTimer);
@@ -769,12 +932,17 @@ function renderDashboard(d, examsList = []) {
 
 async function dashboardPage() {
   try {
-    const [d, rawExams] = await Promise.all([
+    const [d, rawExams, weeklyTasks] = await Promise.all([
       loadProgress(),
-      fetchExams()
+      fetchExams(),
+      fetchWeeklyTasks()
     ]);
+    state.weekly = weeklyTasks;
     const safeExams = Array.isArray(rawExams) ? rawExams.map(toExam) : [];
     renderDashboard(d, safeExams);
+    await saveWeeklyActivitySnapshot();
+    const activity = await fetchWeeklyActivities();
+    renderWeeklyActivity(activity);
   } catch (e) {
     shell({
       title: "لوحة التحكم",
@@ -1070,24 +1238,25 @@ function activityLevelClass(percent) {
 }
 
 function weekLabel(x) {
-  if (!x?.start) return "أسبوع";
-  const start = new Date(`${x.start}T00:00:00Z`);
-  const end = new Date(`${x.end}T00:00:00Z`);
-  const fmt = d => `${d.getUTCDate()} ${LEVANT_MONTHS_SHORT[d.getUTCMonth()]}`;
+  if (!x?.start || !x?.end) return "أسبوع";
+  const startParts = x.start.split('-').map(Number);
+  const endParts = x.end.split('-').map(Number);
+  const start = new Date(startParts[0], startParts[1] - 1, startParts[2]);
+  const end = new Date(endParts[0], endParts[1] - 1, endParts[2]);
+  const fmt = d => `${d.getDate()} ${LEVANT_MONTHS_SHORT[d.getMonth()]}`;
   return `${fmt(start)} — ${fmt(end)}`;
 }
 
 function getDateForCell(weekStartStr, dayOffset) {
   if (!weekStartStr) return null;
-  const d = new Date(`${weekStartStr}T00:00:00Z`);
-  d.setUTCDate(d.getUTCDate() + dayOffset);
-  return d;
+  const parts = weekStartStr.split('-').map(Number);
+  return new Date(parts[0], parts[1] - 1, parts[2] + dayOffset);
 }
 
 function renderWeeklyActivity(payload) {
   const rawWeeks = Array.isArray(payload?.weeks) ? payload.weeks : [];
   const weeks = rawWeeks.slice().sort((a, b) => {
-    return new Date(`${a.start}T00:00:00Z`).getTime() - new Date(`${b.start}T00:00:00Z`).getTime();
+    return (a.start > b.start) ? 1 : -1;
   });
 
   const current = payload?.current;
@@ -1095,17 +1264,23 @@ function renderWeeklyActivity(payload) {
 
   const totalCompleted = weeks.reduce((sum, x) => sum + Number(x.completed || 0), 0);
   const activeWeeks = weeks.filter(x => Number(x.completed || 0) > 0).length;
-  const average = weeks.length ? Math.round(weeks.reduce((sum, x) => sum + Number(x.percent || 0), 0) / weeks.length) : 0;
+  
+  // Calculate average across active or passed weeks
+  const activeOrPastWeeks = weeks.filter(w => w.start <= (current?.start || "") && (Number(w.total || 0) > 0 || Number(w.completed || 0) > 0));
+  const average = activeOrPastWeeks.length 
+    ? Math.round(activeOrPastWeeks.reduce((sum, x) => sum + Number(x.percent || 0), 0) / activeOrPastWeeks.length) 
+    : (current ? current.percent : 0);
 
-  // تجميع الأسابيع حسب الشهور المتعاقبة
+  // Group weeks by month
   const monthBlocks = [];
   let curBlock = null;
 
   weeks.forEach((w, idx) => {
-    const d = new Date(`${w.start}T00:00:00Z`);
+    const parts = w.start.split('-').map(Number);
+    const d = new Date(parts[0], parts[1] - 1, parts[2]);
     if (isNaN(d.getTime())) return;
-    const m = d.getUTCMonth();
-    const y = d.getUTCFullYear();
+    const m = d.getMonth();
+    const y = d.getFullYear();
     const key = `${y}-${m}`;
     if (!curBlock || curBlock.key !== key) {
       if (curBlock) monthBlocks.push(curBlock);
@@ -1127,13 +1302,12 @@ function renderWeeklyActivity(payload) {
       let dayPercent = 0;
 
       if (isCurrentWeek) {
-        // حساب إنجاز اليوم بدقة متناهية من مهام المستخدم المحددة للأسبوع الحالي
         const tasks = getTasksForDay(dayObj.key, state.weekly);
         dayTotal = tasks.length;
         dayCompleted = tasks.filter(t => t.done).length;
         dayPercent = dayTotal > 0 ? Math.round((dayCompleted / dayTotal) * 100) : 0;
       } else if (w.days && typeof w.days === "object") {
-        const dayRecord = Array.isArray(w.days) ? w.days[dayIdx] : (w.days[dayObj.key] || w.days[normDay(dayObj.key)]);
+        const dayRecord = Array.isArray(w.days) ? w.days[dayIdx] : (w.days[dayObj.key] || w.days[normDay(dayObj.key)] || w.days[dayIdx]);
         if (dayRecord) {
           dayCompleted = Number(dayRecord.completed || 0);
           dayTotal = Number(dayRecord.total || 0);
@@ -1142,7 +1316,7 @@ function renderWeeklyActivity(payload) {
       }
 
       const cellDate = getDateForCell(w.start, dayIdx);
-      const dateText = cellDate ? `${cellDate.getUTCDate()} ${LEVANT_MONTHS_SHORT[cellDate.getUTCMonth()]}` : "";
+      const dateText = cellDate ? `${cellDate.getDate()} ${LEVANT_MONTHS_SHORT[cellDate.getMonth()]}` : "";
       const storeIndex = cellDataStore.length;
 
       cellDataStore.push({
@@ -1174,7 +1348,7 @@ function renderWeeklyActivity(payload) {
       <div class="section-title activity-heading">
         <div>
           <h2>📈 نشاط السنة الدراسية</h2>
-          <p>كل مربع يمثل يومًا دراسيًا مستقلاً، ويتم تحديث نسبة الإنجاز يوميًا.</p>
+          <p>كل مربع يمثل يومًا دراسيًا مستقلاً، ويتم تحديث نسبة الإنجاز وحفظها تلقائيًا.</p>
         </div>
         <span class="current-week-badge">الأسبوع الحالي: ${current ? esc(weekLabel(current)) : ""}</span>
       </div>
@@ -1238,10 +1412,7 @@ function renderWeeklyActivity(payload) {
 }
 
 function renderWeekly(rows) {
-  const currentDayIndex = new Date().getDay();
-  // تحويل مؤشر اليوم ليتوافق مع أيام الدراسة (الأحد = 0)
-  const studyDaysIndices = [0, 1, 2, 3, 4];
-  const todayKey = studyDaysIndices.includes(currentDayIndex) ? WEEKDAYS[currentDayIndex].key : "الأحد";
+  const todayKey = getTodayWeekdayKey();
 
   const listEl = $("weeklyList");
   if (!listEl) return;
@@ -1273,12 +1444,16 @@ function renderWeekly(rows) {
   document.querySelectorAll("[data-week-id]").forEach(el => {
     el.onchange = async () => {
       try {
-        await updateDoc(doc(db, 'weeklyTasks', el.dataset.weekId), { done: el.checked, doneDate: el.checked ? new Date().toISOString() : null });
+        await updateDoc(doc(db, 'weeklyTasks', el.dataset.weekId), {
+          done: el.checked,
+          doneDate: el.checked ? new Date().toISOString() : null
+        });
         if (el.checked) {
           soundEffects.playTaskDone();
           showToast('تم إنجاز المهمة بنجاح! أحسنت 🔥');
         }
         state.weekly = await fetchWeeklyTasks();
+        await saveWeeklyActivitySnapshot();
         renderWeekly(state.weekly);
         renderWeeklyActivity(await fetchWeeklyActivities());
       } catch (e) {
@@ -1293,6 +1468,7 @@ function renderWeekly(rows) {
       try {
         await deleteDoc(doc(db, 'weeklyTasks', el.dataset.delweekId));
         state.weekly = await fetchWeeklyTasks();
+        await saveWeeklyActivitySnapshot();
         renderWeekly(state.weekly);
         renderWeeklyActivity(await fetchWeeklyActivities());
       } catch (e) {
@@ -1303,18 +1479,17 @@ function renderWeekly(rows) {
 }
 
 async function refreshWeeklyView() {
-  const before = state.weeklyActivity?.current?.start || "";
   state.weekly = await fetchWeeklyTasks();
+  await saveWeeklyActivitySnapshot();
   const activity = await fetchWeeklyActivities();
   renderWeekly(state.weekly);
   renderWeeklyActivity(activity);
-  return before !== (activity.current?.start || "");
 }
 
 async function weeklyPage() {
   shell({
     title: "الجدول الأسبوعي",
-    subtitle: "يُعاد ضبط علامات الإنجاز كل يوم خميس، ويُحفظ نشاط كل أسبوع في سجل السنة كاملة.",
+    subtitle: "يُعاد ضبط علامات الإنجاز تلقائياً كل يوم جمعة، ويُحفظ نشاط كل أسبوع في سجل السنة كاملة.",
     active: "weekly"
   }, `
     <section class="card">${weeklyForm()}</section>
@@ -1329,13 +1504,17 @@ async function weeklyPage() {
         e.preventDefault();
         const f = new FormData(e.target);
         try {
-          await addDoc(collection(db, 'weeklyTasks'), { user: auth.currentUser.uid, done: false, 
-              day: f.get("day"),
-              subject: f.get("subject"),
-              task: f.get("task"),
-              time: f.get("time")
-             });
+          await addDoc(collection(db, 'weeklyTasks'), {
+            user: auth.currentUser.uid,
+            done: false,
+            day: f.get("day"),
+            subject: f.get("subject"),
+            task: f.get("task"),
+            time: f.get("time")
+          });
           e.target.reset();
+          state.weekly = await fetchWeeklyTasks();
+          await saveWeeklyActivitySnapshot();
           await refreshWeeklyView();
         } catch (err) {
           showError(err);
