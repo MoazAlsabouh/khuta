@@ -1,0 +1,136 @@
+﻿{
+    "weeklyActivity":  [
+                           {
+                               "start":  "2026-10-16",
+                               "percent":  50,
+                               "end":  "2026-10-22",
+                               "days":  {
+                                            "الأحد":  {
+                                                          "completed":  1,
+                                                          "total":  1,
+                                                          "percent":  100
+                                                      },
+                                            "الأربعاء":  {
+                                                             "completed":  0,
+                                                             "total":  1,
+                                                             "percent":  0
+                                                         },
+                                            "4":  {
+                                                      "completed":  0,
+                                                      "total":  0,
+                                                      "percent":  0
+                                                  },
+                                            "الاحد":  {
+                                                          "completed":  1,
+                                                          "total":  1,
+                                                          "percent":  100
+                                                      },
+                                            "الاثنين":  {
+                                                            "completed":  0,
+                                                            "total":  0,
+                                                            "percent":  0
+                                                        },
+                                            "الاربعاء":  {
+                                                             "completed":  0,
+                                                             "total":  1,
+                                                             "percent":  0
+                                                         },
+                                            "الإثنين":  {
+                                                            "completed":  0,
+                                                            "total":  0,
+                                                            "percent":  0
+                                                        },
+                                            "0":  {
+                                                      "completed":  0,
+                                                      "total":  0,
+                                                      "percent":  0
+                                                  },
+                                            "السبت":  {
+                                                          "completed":  0,
+                                                          "total":  0,
+                                                          "percent":  0
+                                                      },
+                                            "3":  {
+                                                      "completed":  0,
+                                                      "total":  0,
+                                                      "percent":  0
+                                                  },
+                                            "1":  {
+                                                      "completed":  0,
+                                                      "total":  0,
+                                                      "percent":  0
+                                                  },
+                                            "5":  {
+                                                      "completed":  0,
+                                                      "total":  1,
+                                                      "percent":  0
+                                                  },
+                                            "الخميس":  {
+                                                           "completed":  0,
+                                                           "total":  0,
+                                                           "percent":  0
+                                                       },
+                                            "2":  {
+                                                      "completed":  1,
+                                                      "total":  1,
+                                                      "percent":  100
+                                                  },
+                                            "6":  {
+                                                      "completed":  0,
+                                                      "total":  0,
+                                                      "percent":  0
+                                                  },
+                                            "الجمعة":  {
+                                                           "completed":  0,
+                                                           "total":  0,
+                                                           "percent":  0
+                                                       },
+                                            "الجمعه":  {
+                                                           "completed":  0,
+                                                           "total":  0,
+                                                           "percent":  0
+                                                       },
+                                            "الثلاثاء":  {
+                                                             "completed":  0,
+                                                             "total":  0,
+                                                             "percent":  0
+                                                         }
+                                        },
+                               "completed":  1,
+                               "updatedAt":  "2026-10-19T14:08:00.817Z",
+                               "_id":  "5Gtwu8M8vXYqE8WkA5ejbSwD4bD3_2026-10-16",
+                               "total":  2,
+                               "user":  "5Gtwu8M8vXYqE8WkA5ejbSwD4bD3"
+                           }
+                       ],
+    "channels":  [
+                     {
+                         "name":  "انس احمد",
+                         "playlistName":  "شرح المنهاج السوري الحديث فيزياء",
+                         "subject":  "الفيزياء",
+                         "channelUrl":  "https://www.youtube.com/@myway.education",
+                         "user":  "5Gtwu8M8vXYqE8WkA5ejbSwD4bD3",
+                         "playlistUrl":  "https://www.youtube.com/@myway.education",
+                         "notes":  ""
+                     }
+                 ],
+    "weeklyTasks":  [
+                        {
+                            "done":  true,
+                            "task":  "1",
+                            "user":  "5Gtwu8M8vXYqE8WkA5ejbSwD4bD3",
+                            "subject":  "رياضيات",
+                            "doneDate":  "2026-10-03T14:22:23.314Z",
+                            "time":  "",
+                            "day":  "الجمعة"
+                        }
+                    ],
+    "exams":  [
+                  {
+                      "subject":  "الفيزياء",
+                      "user":  "5Gtwu8M8vXYqE8WkA5ejbSwD4bD3",
+                      "name":  "امتحان الفصل الأول",
+                      "at":  "2026-10-25T10:00"
+                  }
+              ]
+}
