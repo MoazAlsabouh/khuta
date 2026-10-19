@@ -329,25 +329,12 @@ document.addEventListener('click', () => {
 
 
 
-const ADMIN_EMAILS = [
-  "moazsabouh963@gmail.com",
-  "ibrahaem005@gmail.com",
-  "moaz01moaz@gmail.com"
-];
-
-const ADMIN_UIDS = [
-  "5Gtwu8M8vXYqE8WkA5ejbSwD4bD3"
-];
-
+// التحقق الديناميكي من صلاحيات المشرف حصراً من قاعدة البيانات (Firestore)
 function isUserAdmin(user = auth.currentUser, userProfile = state.userProfile) {
-  if (!user && !userProfile) return false;
-  if (user && user.uid && ADMIN_UIDS.includes(user.uid)) return true;
-  if (userProfile && (userProfile.role === 'admin' || userProfile.isAdmin === true)) return true;
-  const email = ((user && user.email) || (userProfile && userProfile.email) || "").toLowerCase().trim();
-  if (email && ADMIN_EMAILS.includes(email)) return true;
-  const name = ((userProfile && userProfile.name) || (user && user.displayName) || "").trim();
-  if (name && (name.includes("معاذ الصبوح") || name.includes("Moaz Alsabouh") || name.includes("moazalsabouh"))) return true;
-  return false;
+  const profile = userProfile || state.userProfile;
+  if (!profile) return false;
+  const role = String(profile.role || '').toLowerCase().trim();
+  return role === 'admin' || profile.isAdmin === true;
 }
 
 function toDateStr(d) {
@@ -579,10 +566,17 @@ async function fetchUserProfile() {
   try {
     const docSnap = await getDoc(doc(db, 'users', auth.currentUser.uid));
     if (docSnap.exists()) {
-      return docSnap.data();
+      return { id: docSnap.id, ...docSnap.data() };
     }
-  } catch (e) {}
-  return { name: auth.currentUser.displayName || auth.currentUser.email.split('@')[0], stream: 'علمي' };
+  } catch (e) {
+    console.warn("fetchUserProfile error:", e);
+  }
+  return { 
+    id: auth.currentUser.uid,
+    name: auth.currentUser.displayName || auth.currentUser.email?.split('@')[0] || "المستخدم", 
+    stream: 'علمي',
+    role: 'student'
+  };
 }
 
 async function fetchLessons() {
@@ -2289,11 +2283,12 @@ async function adminPage() {
                 <th style="padding: 12px 14px;">البريد الإلكتروني</th>
                 <th style="padding: 12px 14px;">الفرع</th>
                 <th style="padding: 12px 14px;">الصلاحية</th>
+                <th style="padding: 12px 14px; text-align: center;">إدارة الصلاحية</th>
               </tr>
             </thead>
             <tbody>
               ${users.map(u => {
-                const isUAdmin = u.role === 'admin' || (u.email && ADMIN_EMAILS.includes(u.email.toLowerCase().trim())) || (u.id && ADMIN_UIDS.includes(u.id));
+                const isUAdmin = String(u.role || '').toLowerCase().trim() === 'admin' || u.isAdmin === true;
                 return `
                   <tr style="border-bottom: 1px solid var(--line); transition: background 0.15s ease;">
                     <td style="padding: 12px 14px; font-weight: 600;">${esc(u.name || 'مستخدم بدون اسم')}</td>
@@ -2301,6 +2296,13 @@ async function adminPage() {
                     <td style="padding: 12px 14px;"><span class="badge" style="background: rgba(79, 70, 229, 0.08); color: var(--accent); padding: 3px 9px; border-radius: 6px; font-size: 0.85em; font-weight: 600;">${esc(u.stream || 'علمي')}</span></td>
                     <td style="padding: 12px 14px;">
                       ${isUAdmin ? '<span style="background: rgba(16, 185, 129, 0.15); color: #10b981; padding: 4px 10px; border-radius: 8px; font-weight: 700; font-size: 0.85em; display: inline-flex; align-items: center; gap: 4px;">👑 مشرف</span>' : '<span style="color: var(--muted); font-size: 0.85em;">طالب</span>'}
+                    </td>
+                    <td style="padding: 12px 14px; text-align: center;">
+                      ${u.id !== user.uid ? `
+                        <button onclick="window.toggleUserRole('${esc(u.id)}', '${isUAdmin ? 'admin' : 'student'}')" style="padding: 5px 12px; font-size: 0.8em; border-radius: 6px; cursor: pointer; border: 1px solid var(--line); background: ${isUAdmin ? 'rgba(239, 68, 68, 0.1)' : 'rgba(79, 70, 229, 0.1)'}; color: ${isUAdmin ? '#ef4444' : 'var(--accent)'}; font-weight: 600;">
+                          ${isUAdmin ? 'سحب الإشراف' : 'ترقية لمشرف 👑'}
+                        </button>
+                      ` : '<span style="font-size:0.8em; color:var(--muted); font-weight:600;">(حسابك الحالي)</span>'}
                     </td>
                   </tr>
                 `;
@@ -2310,6 +2312,21 @@ async function adminPage() {
         </div>
       </section>
     `;
+
+    window.toggleUserRole = async (userId, currentRole) => {
+      const newRole = currentRole === 'admin' ? 'student' : 'admin';
+      const confirmMsg = newRole === 'admin' 
+        ? 'هل أنت متأكد من ترقية هذا المستخدم إلى مشرف في قاعدة البيانات؟' 
+        : 'هل أنت متأكد من سحب صلاحية المشرف من هذا المستخدم في قاعدة البيانات؟';
+      if (!confirm(confirmMsg)) return;
+      try {
+        await updateDoc(doc(db, 'users', userId), { role: newRole });
+        showToast(`تم تحديث الصلاحية في قاعدة البيانات إلى: ${newRole === 'admin' ? 'مشرف 👑' : 'طالب 👤'} بنجاح!`, 'success');
+        await adminPage();
+      } catch (err) {
+        showToast('فشل تعديل الصلاحية: ' + err.message, 'error');
+      }
+    };
 
     shell({
       title: "لوحة تحكم المشرف",
