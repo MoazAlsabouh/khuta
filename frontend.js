@@ -582,7 +582,17 @@ async function fetchUserProfile() {
 async function fetchLessons() {
   const q = query(collection(db, "lessons"));
   const snap = await getDocs(q);
-  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  const seen = new Set();
+  const list = [];
+  for (const d of snap.docs) {
+    const data = d.data();
+    const key = `${(data.subject || '').trim()}:::${(data.unit || '').trim()}:::${(data.lesson || '').trim()}`;
+    if (!seen.has(key)) {
+      seen.add(key);
+      list.push({ id: d.id, ...data });
+    }
+  }
+  return list;
 }
 
 async function fetchProgress() {
