@@ -697,11 +697,44 @@ margin: 18px 0;
 display: none !important;
 }
 
-footer {
-text-align: center;
-color: var(--muted);
-font-size: 11px;
-margin-top: 30px;
+footer, .site-footer {
+  text-align: center;
+  padding: 25px 20px;
+  font-size: 0.9em;
+  background: linear-gradient(135deg, #f0f7ff, #e6f0fa);
+  color: #333;
+  margin-top: 50px;
+  border-top: 2px solid #cce0ff;
+  border-radius: 14px;
+}
+
+.site-footer .site-title {
+  color: #4285F4;
+  font-size: 1.1em;
+}
+
+.site-footer .site-copy {
+  display: inline-block;
+  margin-top: 4px;
+  color: var(--muted);
+}
+
+.site-footer .social-links {
+  margin-top: 15px;
+  display: flex;
+  justify-content: center;
+  gap: 20px;
+  align-items: center;
+}
+
+.site-footer .social-links svg {
+  fill: #333;
+  transition: transform 0.2s ease, opacity 0.2s ease;
+}
+
+.site-footer .social-links a:hover svg {
+  transform: translateY(-2px);
+  opacity: 0.85;
 }
 
 /* STREAMING_CHUNK:Styling annual study activity calendar components... */
@@ -1152,14 +1185,24 @@ font-size: 9px;
   background: #1e293b;
 }
 
-[data-theme="dark"] footer {
+[data-theme="dark"] footer,
+[data-theme="dark"] .site-footer {
   background: linear-gradient(135deg, #0f172a, #1e1b4b) !important;
   color: #cbd5e1 !important;
   border-top-color: #334155 !important;
 }
 
-[data-theme="dark"] footer svg {
+[data-theme="dark"] footer svg,
+[data-theme="dark"] .site-footer svg {
   fill: #cbd5e1 !important;
+}
+
+[data-theme="dark"] .site-footer .site-title {
+  color: #60a5fa !important;
+}
+
+[data-theme="dark"] .site-footer .site-copy {
+  color: #94a3b8 !important;
 }
 
 [data-theme="dark"] .activity-calendar {

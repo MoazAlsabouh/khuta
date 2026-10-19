@@ -1,4 +1,4 @@
-const CACHE_NAME = 'khuta-pwa-v1';
+const CACHE_NAME = 'khuta-pwa-v3';
 const PRECACHE_ASSETS = [
   './',
   './index.html',
@@ -8,15 +8,18 @@ const PRECACHE_ASSETS = [
   './exams.html',
   './channels.html',
   './tools.html',
+  './admin.html',
   './login.html',
   './register.html',
   './forgot-password.html',
   './reset-password.html',
-  './admin.html',
+  './verify.html',
   './style.css',
   './login.css',
   './frontend.js',
   './firebase-init.js',
+  './login.js',
+  './register.js',
   './manifest.json',
   './icon.svg',
   './logo.jpg'
@@ -38,6 +41,7 @@ self.addEventListener('activate', (event) => {
       return Promise.all(
         keys.map((key) => {
           if (key !== CACHE_NAME) {
+            console.log('Deleting obsolete cache:', key);
             return caches.delete(key);
           }
         })
@@ -70,7 +74,24 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Same-origin requests: Stale-While-Revalidate with offline fallback
+  // Network-First for HTML navigation / document requests (guarantees fresh updates when online)
+  if (req.mode === 'navigate' || (req.headers.get('accept') && req.headers.get('accept').includes('text/html'))) {
+    event.respondWith(
+      fetch(req).then((networkResponse) => {
+        if (networkResponse && networkResponse.status === 200) {
+          const responseToCache = networkResponse.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(req, responseToCache));
+        }
+        return networkResponse;
+      }).catch(() => {
+        // Fallback to cache when offline
+        return caches.match(req).then((cached) => cached || caches.match('./index.html'));
+      })
+    );
+    return;
+  }
+
+  // Stale-While-Revalidate for other static assets (CSS, JS, images, SVG)
   event.respondWith(
     caches.match(req).then((cachedResponse) => {
       const fetchPromise = fetch(req).then((networkResponse) => {
@@ -81,13 +102,7 @@ self.addEventListener('fetch', (event) => {
           });
         }
         return networkResponse;
-      }).catch((fetchErr) => {
-        // If offline and requesting an HTML page, fallback to cached page or index
-        if (req.headers.get('accept') && req.headers.get('accept').includes('text/html')) {
-          return cachedResponse || caches.match('./index.html');
-        }
-        return cachedResponse;
-      });
+      }).catch(() => cachedResponse);
 
       return cachedResponse || fetchPromise;
     })
