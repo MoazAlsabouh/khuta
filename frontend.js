@@ -31,6 +31,16 @@ const subjectsFallback = [
   "اللغة العربية", "اللغة الإنجليزية", "التربية الدينية"
 ];
 
+function shouldIgnoreSubject(subject, user = auth?.currentUser, userProfile = state?.userProfile) {
+  if (!subject) return false;
+  const email = ((user && user.email) || (userProfile && userProfile.email) || "").toLowerCase().trim();
+  if (email === "moazsabouh963@gmail.cm" || email === "moazsabouh963@gmail.com") {
+    const s = String(subject).trim();
+    return s === "اللغة الفرنسية" || s === "الفرنسية" || s.includes("فرنسي");
+  }
+  return false;
+}
+
 // الأيام الدراسية الخمسة المعتمدة فقط (من الأحد إلى الخميس)
 const WEEKDAYS = [
   { key: "الجمعة", label: "الجمعة", short: "جمعة" },
@@ -586,6 +596,7 @@ async function fetchLessons() {
   const list = [];
   for (const d of snap.docs) {
     const data = d.data();
+    if (shouldIgnoreSubject(data.subject)) continue;
     const key = `${(data.subject || '').trim()}:::${(data.unit || '').trim()}:::${(data.lesson || '').trim()}`;
     if (!seen.has(key)) {
       seen.add(key);
@@ -607,14 +618,14 @@ async function fetchExams() {
   const q = query(collection(db, "exams"), where("user", "==", auth.currentUser.uid));
   const snap = await getDocs(q);
   const exams = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-  return exams.sort((a, b) => new Date(a.at) - new Date(b.at));
+  return exams.filter(x => !shouldIgnoreSubject(x.subject)).sort((a, b) => new Date(a.at) - new Date(b.at));
 }
 
 async function fetchChannels() {
   if (!auth.currentUser) return [];
   const q = query(collection(db, "channels"), where("user", "==", auth.currentUser.uid));
   const snap = await getDocs(q);
-  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  return snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(x => !shouldIgnoreSubject(x.subject));
 }
 
 async function saveWeeklyActivitySnapshot() {
@@ -665,7 +676,7 @@ async function fetchWeeklyTasks() {
   if (!auth.currentUser) return [];
   const q = query(collection(db, "weeklyTasks"), where("user", "==", auth.currentUser.uid));
   const snap = await getDocs(q);
-  const tasks = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  const tasks = snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(x => !shouldIgnoreSubject(x.subject));
 
   const currentWindow = getCurrentWeekWindow();
   const startOfWeek = new Date(currentWindow.start + "T00:00:00");
@@ -802,7 +813,7 @@ async function loadProgress() {
     fetchUserProfile()
   ]);
   state.userProfile = userProfile;
-  const lessons = allLessons.filter(x => !x.stream || x.stream === 'مشترك' || x.stream === userProfile.stream);
+  const lessons = allLessons.filter(x => (!x.stream || x.stream === 'مشترك' || x.stream === userProfile.stream) && !shouldIgnoreSubject(x.subject, user, userProfile));
 
 
   const progressMap = {};
@@ -1185,7 +1196,7 @@ async function loadLessonsForSubject(subjectName, reset = true) {
     fetchUserProfile()
   ]);
   state.userProfile = userProfile;
-  const lessons = allLessons.filter(x => !x.stream || x.stream === 'مشترك' || x.stream === userProfile.stream);
+  const lessons = allLessons.filter(x => (!x.stream || x.stream === 'مشترك' || x.stream === userProfile.stream) && !shouldIgnoreSubject(x.subject, auth.currentUser, userProfile));
 
   const progressMap = {};
   progressList.forEach(p => { progressMap[p.lesson] = p; });
@@ -1663,7 +1674,7 @@ function channelsForm() {
       <input name="name" placeholder="اسم القناة" required>
       <select name="subject" required>
         <option value="">اختر المادة</option>
-        ${subjectsFallback.map(x => `<option value="${x}">${x}</option>`).join("")}
+        ${subjectsFallback.filter(x => !shouldIgnoreSubject(x)).map(x => `<option value="${x}">${x}</option>`).join("")}
       </select>
       <input name="channelUrl" type="url" placeholder="رابط القناة">
       <input name="playlistName" placeholder="اسم قائمة التشغيل">
