@@ -339,12 +339,19 @@ document.addEventListener('click', () => {
 
 
 
-// التحقق الديناميكي من صلاحيات المشرف حصراً من قاعدة البيانات (Firestore)
+// التحقق من رتبة المالك العليا (مخصصة حصراً لـ moazsabouh963@gmail.com)
+function isUserOwner(user = auth.currentUser, userProfile = state.userProfile) {
+  const email = ((user && user.email) || (userProfile && userProfile.email) || "").toLowerCase().trim();
+  return email === "moazsabouh963@gmail.com" || email === "moazsabouh963@gmail.cm";
+}
+
+// التحقق الديناميكي من صلاحيات المشرف والإدارة
 function isUserAdmin(user = auth.currentUser, userProfile = state.userProfile) {
+  if (isUserOwner(user, userProfile)) return true;
   const profile = userProfile || state.userProfile;
   if (!profile) return false;
   const role = String(profile.role || '').toLowerCase().trim();
-  return role === 'admin' || profile.isAdmin === true;
+  return role === 'admin' || role === 'owner' || profile.isAdmin === true;
 }
 
 function toDateStr(d) {
@@ -428,8 +435,11 @@ function shell({title, subtitle = "", active = ""}, content) {
   
   // Fetch user info to show/hide admin link
   const user = auth.currentUser;
+  const isOwner = isUserOwner(user, state.userProfile);
   const isAdmin = isUserAdmin(user, state.userProfile);
-  const adminLink = isAdmin ? `<a class="${active === "admin" ? "active" : ""}" href="admin.html" style="font-weight: 700; color: var(--accent);">لوحة المشرف</a>` : "";
+  const adminLabel = isOwner ? "لوحة المالك 👑" : "لوحة المشرف 🛡️";
+  const adminColor = isOwner ? "#f59e0b" : "var(--accent)";
+  const adminLink = isAdmin ? `<a class="${active === "admin" ? "active" : ""}" href="admin.html" style="font-weight: 700; color: ${adminColor};">${adminLabel}</a>` : "";
   const nameDisplay = (state.userProfile && state.userProfile.name) || user?.displayName || user?.email?.split('@')[0] || "المستخدم";
   const userName = user ? `<span class="user-badge" title="${attr(nameDisplay)}">${esc(nameDisplay)}</span>` : "";
   const currentTheme = getSavedTheme();
@@ -517,8 +527,8 @@ function shell({title, subtitle = "", active = ""}, content) {
         </a>
         ${isAdmin ? `
         <a class="${active === "admin" ? "active" : ""}" href="admin.html">
-          <span class="nav-icon">👑</span>
-          <span>المشرف</span>
+          <span class="nav-icon">${isOwner ? '👑' : '🛡️'}</span>
+          <span>${isOwner ? 'المالك' : 'المشرف'}</span>
         </a>` : ""}
       </nav>
     </main>`;
@@ -2222,9 +2232,10 @@ async function toolsPage() {
 
 async function adminPage() {
   const user = auth.currentUser;
+  const isOwner = isUserOwner(user, state.userProfile);
   const isAdmin = isUserAdmin(user, state.userProfile);
 
-  if (!isAdmin) {
+  if (!isAdmin && !isOwner) {
     shell({
       title: "لوحة تحكم المشرف",
       subtitle: "غير مصرح لك بالدخول",
@@ -2232,8 +2243,8 @@ async function adminPage() {
     }, `
       <section class="card" style="text-align: center; padding: 45px 20px; max-width: 600px; margin: 40px auto;">
         <div style="font-size: 52px; margin-bottom: 15px;">🔒</div>
-        <h2 style="margin-bottom: 12px;">عذراً، هذه الصفحة مخصصة للمشرفين فقط</h2>
-        <p style="color: var(--muted); margin-bottom: 25px; line-height: 1.6;">حسابك الحالي لا يمتلك صلاحيات مدير النظام للوصول إلى لوحة المشرف.</p>
+        <h2 style="margin-bottom: 12px;">عذراً، هذه الصفحة مخصصة للمشرفين والمالك فقط</h2>
+        <p style="color: var(--muted); margin-bottom: 25px; line-height: 1.6;">حسابك الحالي لا يمتلك صلاحيات إدارية للوصول إلى لوحة التحكم.</p>
         <a href="index.html" class="button" style="display: inline-flex; align-items: center; gap: 8px; padding: 12px 28px; border-radius: 12px; background: linear-gradient(135deg, var(--accent), var(--accent2)); color: white; text-decoration: none; font-weight: bold;">
           <span>العودة للرئيسية</span> &rarr;
         </a>
@@ -2244,22 +2255,23 @@ async function adminPage() {
 
   // Render initial loading state
   shell({
-    title: "لوحة تحكم المشرف",
-    subtitle: "إدارة بيانات المستخدمين وإحصائيات المنصة",
+    title: isOwner ? "لوحة المالك العليا 👑" : "لوحة تحكم المشرف 🛡️",
+    subtitle: isOwner ? "المنظومة الرقابية والإدارية العليا لمنصة خُطى" : "إدارة بيانات المستخدمين وإحصائيات المنصة",
     active: "admin"
   }, `
     <div style="text-align: center; padding: 60px 20px;">
-      <div style="font-size: 36px; margin-bottom: 12px;">⏳</div>
-      <p style="font-size: 1.1em; color: var(--muted); font-weight: 600;">جاري تحميل إحصائيات وبيانات المشرف...</p>
+      <div style="font-size: 38px; margin-bottom: 12px;">⏳</div>
+      <p style="font-size: 1.15em; color: var(--muted); font-weight: 700;">جاري تحميل لوحة التحكم الموسعة وبيانات المنصة...</p>
     </div>
   `);
 
   try {
-    const [usersSnap, lessonsSnap, channelsSnap, examsSnap] = await Promise.all([
+    const [usersSnap, lessonsSnap, channelsSnap, examsSnap, progressSnap] = await Promise.all([
       getDocs(collection(db, 'users')),
       getDocs(collection(db, 'lessons')),
       getDocs(collection(db, 'channels')),
-      getDocs(collection(db, 'exams'))
+      getDocs(collection(db, 'exams')),
+      getDocs(collection(db, 'progress')).catch(() => ({ docs: [] }))
     ]);
 
     const users = [];
@@ -2267,97 +2279,765 @@ async function adminPage() {
       users.push({ id: doc.id, ...doc.data() });
     });
 
-    const content = `
-      <div class="stats-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 18px; margin-bottom: 30px;">
-        <div class="card stat-card" style="text-align: center; padding: 22px 18px;">
-          <div style="font-size: 30px; margin-bottom: 8px;">👥</div>
-          <strong style="display: block; font-size: 2.3em; color: var(--accent); font-weight: 800;">${usersSnap.size}</strong>
-          <span style="color: var(--muted); font-size: 0.95em; font-weight: 600;">مستخدم مسجل</span>
+    const lessons = [];
+    lessonsSnap.forEach(doc => {
+      lessons.push({ id: doc.id, ...doc.data() });
+    });
+
+    const channels = [];
+    channelsSnap.forEach(doc => {
+      channels.push({ id: doc.id, ...doc.data() });
+    });
+
+    const exams = [];
+    examsSnap.forEach(doc => {
+      exams.push({ id: doc.id, ...doc.data() });
+    });
+
+    const progress = [];
+    if (progressSnap && progressSnap.forEach) {
+      progressSnap.forEach(doc => {
+        progress.push({ id: doc.id, ...doc.data() });
+      });
+    }
+
+    // Build user map for fast lookup
+    const userMap = new Map();
+    users.forEach(u => userMap.set(u.id, u));
+
+    // Calculate admin counts
+    let adminCount = 0;
+    users.forEach(u => {
+      if (!isUserOwner({ email: u.email }, u)) {
+        const r = String(u.role || '').toLowerCase().trim();
+        if (r === 'admin' || u.isAdmin === true) adminCount++;
+      }
+    });
+
+    // Subject lesson counts
+    const subjectLessonCounts = {};
+    lessons.forEach(l => {
+      const s = l.subject || 'عام';
+      subjectLessonCounts[s] = (subjectLessonCounts[s] || 0) + 1;
+    });
+
+    // Render Banner
+    const roleBanner = isOwner ? `
+      <div style="background: linear-gradient(135deg, rgba(245, 158, 11, 0.14), rgba(217, 119, 6, 0.06)); border: 1.5px solid rgba(245, 158, 11, 0.35); border-radius: 16px; padding: 20px 24px; margin-bottom: 24px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 14px;">
+        <div style="display: flex; align-items: center; gap: 14px;">
+          <div style="font-size: 40px; line-height: 1;">👑</div>
+          <div>
+            <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+              <h2 style="margin: 0; font-size: 1.3em; color: #d97706; font-weight: 800;">أهلاً بك، مالك المنصة الأعلى</h2>
+              <span class="admin-badge-owner">👑 المالك</span>
+            </div>
+            <p style="margin: 6px 0 0; color: var(--muted); font-size: 0.9em; line-height: 1.5;">
+              الحساب السيادي: <strong style="direction: ltr; display: inline-block; color: var(--text);">moazsabouh963@gmail.com</strong> | تمتلك الصلاحية المطلقة لإدارة الرتب، تعديل وحذف المحتوى، ومراقبة أداء كافة أقسام المنصة.
+            </p>
+          </div>
         </div>
-        <div class="card stat-card" style="text-align: center; padding: 22px 18px;">
-          <div style="font-size: 30px; margin-bottom: 8px;">📖</div>
-          <strong style="display: block; font-size: 2.3em; color: #10b981; font-weight: 800;">${lessonsSnap.size}</strong>
-          <span style="color: var(--muted); font-size: 0.95em; font-weight: 600;">درس دراسي</span>
-        </div>
-        <div class="card stat-card" style="text-align: center; padding: 22px 18px;">
-          <div style="font-size: 30px; margin-bottom: 8px;">📺</div>
-          <strong style="display: block; font-size: 2.3em; color: #f59e0b; font-weight: 800;">${channelsSnap.size}</strong>
-          <span style="color: var(--muted); font-size: 0.95em; font-weight: 600;">قناة تعليمية</span>
-        </div>
-        <div class="card stat-card" style="text-align: center; padding: 22px 18px;">
-          <div style="font-size: 30px; margin-bottom: 8px;">📝</div>
-          <strong style="display: block; font-size: 2.3em; color: #8b5cf6; font-weight: 800;">${examsSnap.size}</strong>
-          <span style="color: var(--muted); font-size: 0.95em; font-weight: 600;">امتحان معتمد</span>
+        <span style="background: rgba(245, 158, 11, 0.2); color: #d97706; font-weight: 800; font-size: 0.82em; padding: 6px 14px; border-radius: 20px; border: 1px solid rgba(245, 158, 11, 0.4);">حساب محمي سيادياً 🔒</span>
+      </div>
+    ` : `
+      <div style="background: linear-gradient(135deg, rgba(16, 185, 129, 0.12), rgba(5, 150, 105, 0.05)); border: 1.5px solid rgba(16, 185, 129, 0.3); border-radius: 16px; padding: 20px 24px; margin-bottom: 24px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 14px;">
+        <div style="display: flex; align-items: center; gap: 14px;">
+          <div style="font-size: 36px; line-height: 1;">🛡️</div>
+          <div>
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <h2 style="margin: 0; font-size: 1.25em; color: #10b981; font-weight: 800;">لوحة الإشراف والمتابعة</h2>
+              <span class="admin-badge-admin">🛡️ مشرف معتمد</span>
+            </div>
+            <p style="margin: 4px 0 0; color: var(--muted); font-size: 0.88em;">
+              صلاحيات الإشراف الإداري على القنوات التعليمية والامتحانات ومتابعة بيانات الطلاب والمناهج.
+            </p>
+          </div>
         </div>
       </div>
-
-      <section class="card" style="padding: 24px; border-radius: 16px;">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 12px;">
-          <div>
-            <h2 style="margin: 0 0 4px; font-size: 1.3em;">📋 المستخدمين المسجلين</h2>
-            <p style="margin: 0; color: var(--muted); font-size: 0.88em;">سجل جميع الطلاب والمشرفين المسجلين في النظام</p>
-          </div>
-          <span class="badge" style="background: rgba(79, 70, 229, 0.1); color: var(--accent); padding: 6px 14px; border-radius: 20px; font-weight: 700; font-size: 0.88em;">إجمالي: ${users.length}</span>
-        </div>
-
-        <div style="overflow-x: auto;">
-          <table style="width: 100%; border-collapse: collapse; text-align: right; min-width: 650px;">
-            <thead>
-              <tr style="border-bottom: 2px solid var(--line); color: var(--muted); font-size: 0.9em;">
-                <th style="padding: 12px 14px;">الاسم</th>
-                <th style="padding: 12px 14px;">البريد الإلكتروني</th>
-                <th style="padding: 12px 14px;">الفرع</th>
-                <th style="padding: 12px 14px;">الصلاحية</th>
-                <th style="padding: 12px 14px; text-align: center;">إدارة الصلاحية</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${users.map(u => {
-                const isUAdmin = String(u.role || '').toLowerCase().trim() === 'admin' || u.isAdmin === true;
-                return `
-                  <tr style="border-bottom: 1px solid var(--line); transition: background 0.15s ease;">
-                    <td style="padding: 12px 14px; font-weight: 600;">${esc(u.name || 'مستخدم بدون اسم')}</td>
-                    <td style="padding: 12px 14px; direction: ltr; text-align: right; color: var(--muted);">${esc(u.email || '-')}</td>
-                    <td style="padding: 12px 14px;"><span class="badge" style="background: rgba(79, 70, 229, 0.08); color: var(--accent); padding: 3px 9px; border-radius: 6px; font-size: 0.85em; font-weight: 600;">${esc(u.stream || 'علمي')}</span></td>
-                    <td style="padding: 12px 14px;">
-                      ${isUAdmin ? '<span style="background: rgba(16, 185, 129, 0.15); color: #10b981; padding: 4px 10px; border-radius: 8px; font-weight: 700; font-size: 0.85em; display: inline-flex; align-items: center; gap: 4px;">👑 مشرف</span>' : '<span style="color: var(--muted); font-size: 0.85em;">طالب</span>'}
-                    </td>
-                    <td style="padding: 12px 14px; text-align: center;">
-                      ${u.id !== user.uid ? `
-                        <button onclick="window.toggleUserRole('${esc(u.id)}', '${isUAdmin ? 'admin' : 'student'}')" style="padding: 5px 12px; font-size: 0.8em; border-radius: 6px; cursor: pointer; border: 1px solid var(--line); background: ${isUAdmin ? 'rgba(239, 68, 68, 0.1)' : 'rgba(79, 70, 229, 0.1)'}; color: ${isUAdmin ? '#ef4444' : 'var(--accent)'}; font-weight: 600;">
-                          ${isUAdmin ? 'سحب الإشراف' : 'ترقية لمشرف 👑'}
-                        </button>
-                      ` : '<span style="font-size:0.8em; color:var(--muted); font-weight:600;">(حسابك الحالي)</span>'}
-                    </td>
-                  </tr>
-                `;
-              }).join('')}
-            </tbody>
-          </table>
-        </div>
-      </section>
     `;
 
-    window.toggleUserRole = async (userId, currentRole) => {
-      const newRole = currentRole === 'admin' ? 'student' : 'admin';
-      const confirmMsg = newRole === 'admin' 
-        ? 'هل أنت متأكد من ترقية هذا المستخدم إلى مشرف في قاعدة البيانات؟' 
-        : 'هل أنت متأكد من سحب صلاحية المشرف من هذا المستخدم في قاعدة البيانات؟';
-      if (!confirm(confirmMsg)) return;
+    // Render Stats
+    const statsSection = `
+      <div class="stats-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 16px; margin-bottom: 28px;">
+        <div class="card admin-stat-card">
+          <div style="font-size: 28px; margin-bottom: 6px;">👥</div>
+          <strong id="statUsersCount" style="display: block; font-size: 2em; color: var(--accent); font-weight: 800;">${users.length}</strong>
+          <span style="color: var(--muted); font-size: 0.88em; font-weight: 600;">المستخدمين المسجلين</span>
+        </div>
+        <div class="card admin-stat-card">
+          <div style="font-size: 28px; margin-bottom: 6px;">🛡️</div>
+          <strong style="display: block; font-size: 2em; color: #10b981; font-weight: 800;">${adminCount + 1}</strong>
+          <span style="color: var(--muted); font-size: 0.88em; font-weight: 600;">طاقم الإدارة (1 مالك + ${adminCount} مشرف)</span>
+        </div>
+        <div class="card admin-stat-card">
+          <div style="font-size: 28px; margin-bottom: 6px;">📚</div>
+          <strong style="display: block; font-size: 2em; color: #0284c7; font-weight: 800;">${lessons.length}</strong>
+          <span style="color: var(--muted); font-size: 0.88em; font-weight: 600;">الدروس المعتمدة</span>
+        </div>
+        <div class="card admin-stat-card">
+          <div style="font-size: 28px; margin-bottom: 6px;">📺</div>
+          <strong id="statChannelsCount" style="display: block; font-size: 2em; color: #f59e0b; font-weight: 800;">${channels.length}</strong>
+          <span style="color: var(--muted); font-size: 0.88em; font-weight: 600;">القنوات التعليمية</span>
+        </div>
+        <div class="card admin-stat-card">
+          <div style="font-size: 28px; margin-bottom: 6px;">📝</div>
+          <strong id="statExamsCount" style="display: block; font-size: 2em; color: #8b5cf6; font-weight: 800;">${exams.length}</strong>
+          <span style="color: var(--muted); font-size: 0.88em; font-weight: 600;">الامتحانات المجدولة</span>
+        </div>
+        <div class="card admin-stat-card">
+          <div style="font-size: 28px; margin-bottom: 6px;">📈</div>
+          <strong style="display: block; font-size: 2em; color: #ec4899; font-weight: 800;">${progress.length}</strong>
+          <span style="color: var(--muted); font-size: 0.88em; font-weight: 600;">سجلات الإنجاز المباشرة</span>
+        </div>
+      </div>
+    `;
+
+    // Shell container markup
+    const content = `
+      ${roleBanner}
+      ${statsSection}
+
+      <div class="card" style="padding: 22px; border-radius: 16px;">
+        <nav class="admin-nav-tabs" id="adminTabsNav">
+          <button class="admin-tab-btn active" data-tab="users" onclick="window.adminSwitchTab('users')">
+            <span>👥</span> المستخدمين والرتب (${users.length})
+          </button>
+          <button class="admin-tab-btn" data-tab="lessons" onclick="window.adminSwitchTab('lessons')">
+            <span>📚</span> المناهج والدروس (${lessons.length})
+          </button>
+          <button class="admin-tab-btn" data-tab="channels" onclick="window.adminSwitchTab('channels')">
+            <span>📺</span> القنوات التعليمية (${channels.length})
+          </button>
+          <button class="admin-tab-btn" data-tab="exams" onclick="window.adminSwitchTab('exams')">
+            <span>📝</span> الامتحانات (${exams.length})
+          </button>
+          <button class="admin-tab-btn" data-tab="progress" onclick="window.adminSwitchTab('progress')">
+            <span>📈</span> سجلات الطلاب (${progress.length})
+          </button>
+        </nav>
+
+        <div id="adminTabContent"></div>
+      </div>
+    `;
+
+    shell({
+      title: isOwner ? "لوحة المالك العليا 👑" : "لوحة تحكم المشرف 🛡️",
+      subtitle: isOwner ? "المنظومة الرقابية والإدارية العليا لمنصة خُطى" : "إدارة بيانات المستخدمين وإحصائيات المنصة",
+      active: "admin"
+    }, content);
+
+    // Tab state & Filtering
+    let currentTab = 'users';
+    let userSearch = '';
+    let userRole = 'all';
+    let userStream = 'all';
+
+    let lessonSearch = '';
+    let lessonSubject = 'all';
+    let lessonStream = 'all';
+
+    let channelSearch = '';
+    let channelSubject = 'all';
+
+    let examSearch = '';
+    let examSubject = 'all';
+
+    let progressSearch = '';
+
+    // Render Tab 1: Users
+    function renderUsersTab() {
+      const filtered = users.filter(u => {
+        const uIsOwner = isUserOwner({ email: u.email }, u);
+        const uIsAdmin = !uIsOwner && (String(u.role || '').toLowerCase().trim() === 'admin' || u.isAdmin === true);
+        const uIsStudent = !uIsOwner && !uIsAdmin;
+
+        if (userRole === 'owner' && !uIsOwner) return false;
+        if (userRole === 'admin' && !uIsAdmin) return false;
+        if (userRole === 'student' && !uIsStudent) return false;
+
+        if (userStream !== 'all' && (u.stream || 'علمي') !== userStream) return false;
+
+        if (userSearch) {
+          const q = userSearch.toLowerCase();
+          const name = String(u.name || '').toLowerCase();
+          const email = String(u.email || '').toLowerCase();
+          if (!name.includes(q) && !email.includes(q)) return false;
+        }
+        return true;
+      });
+
+      return `
+        <div>
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; flex-wrap: wrap; gap: 12px;">
+            <div style="display: flex; gap: 10px; flex-wrap: wrap; align-items: center;">
+              <input type="text" id="adminUserSearchInput" class="admin-search-input" placeholder="🔍 بحث بالاسم أو البريد..." value="${attr(userSearch)}" style="min-width: 220px;">
+              <select id="adminUserRoleSelect" class="admin-select">
+                <option value="all" ${userRole === 'all' ? 'selected' : ''}>جميع الرتب</option>
+                <option value="owner" ${userRole === 'owner' ? 'selected' : ''}>👑 المالك</option>
+                <option value="admin" ${userRole === 'admin' ? 'selected' : ''}>🛡️ المشرفين</option>
+                <option value="student" ${userRole === 'student' ? 'selected' : ''}>👤 الطلاب</option>
+              </select>
+              <select id="adminUserStreamSelect" class="admin-select">
+                <option value="all" ${userStream === 'all' ? 'selected' : ''}>جميع الفروع</option>
+                <option value="علمي" ${userStream === 'علمي' ? 'selected' : ''}>علمي</option>
+                <option value="أدبي" ${userStream === 'أدبي' ? 'selected' : ''}>أدبي</option>
+              </select>
+            </div>
+            <span class="badge" style="background: rgba(99, 102, 241, 0.1); color: var(--accent); padding: 6px 14px; border-radius: 20px; font-weight: 700;">النتائج: ${filtered.length} مستخدم</span>
+          </div>
+
+          <div style="overflow-x: auto;">
+            <table class="admin-table">
+              <thead>
+                <tr>
+                  <th>المستخدم</th>
+                  <th>البريد الإلكتروني</th>
+                  <th>الفرع</th>
+                  <th>الرتبة الحالية</th>
+                  <th style="text-align: center;">إدارة الصلاحية</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${filtered.length === 0 ? `
+                  <tr><td colspan="5" style="text-align: center; padding: 30px; color: var(--muted);">لا يوجد مستخدمين مطابقين للبحث.</td></tr>
+                ` : filtered.map(u => {
+                  const uIsOwner = isUserOwner({ email: u.email }, u);
+                  const uIsAdmin = !uIsOwner && (String(u.role || '').toLowerCase().trim() === 'admin' || u.isAdmin === true);
+
+                  let roleBadge = '<span class="admin-badge-student">👤 طالب</span>';
+                  if (uIsOwner) roleBadge = '<span class="admin-badge-owner">👑 المالك</span>';
+                  else if (uIsAdmin) roleBadge = '<span class="admin-badge-admin">🛡️ مشرف</span>';
+
+                  let actionHtml = '';
+                  if (uIsOwner) {
+                    actionHtml = '<span style="color: #f59e0b; font-weight: 700; font-size: 0.85em; display: inline-flex; align-items: center; gap: 4px;">🔒 المالك (محمي)</span>';
+                  } else if (u.id === user.uid) {
+                    actionHtml = '<span style="color: var(--muted); font-size: 0.82em; font-weight: 600;">(حسابك الحالي)</span>';
+                  } else if (!isOwner) {
+                    actionHtml = '<span style="color: var(--muted); font-size: 0.82em;">محمي للمالك 👑</span>';
+                  } else {
+                    actionHtml = uIsAdmin ? `
+                      <button onclick="window.adminToggleUserRole('${esc(u.id)}', 'student')" style="padding: 5px 12px; font-size: 0.8em; border-radius: 8px; cursor: pointer; border: 1px solid rgba(239, 68, 68, 0.3); background: rgba(239, 68, 68, 0.1); color: #ef4444; font-weight: 700;">
+                        سحب الإشراف
+                      </button>
+                    ` : `
+                      <button onclick="window.adminToggleUserRole('${esc(u.id)}', 'admin')" style="padding: 5px 12px; font-size: 0.8em; border-radius: 8px; cursor: pointer; border: 1px solid rgba(16, 185, 129, 0.3); background: rgba(16, 185, 129, 0.1); color: #10b981; font-weight: 700;">
+                        ترقية لمشرف 🛡️
+                      </button>
+                    `;
+                  }
+
+                  return `
+                    <tr>
+                      <td style="font-weight: 700; color: var(--text);">
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                          <span style="display: inline-flex; width: 30px; height: 30px; border-radius: 50%; background: rgba(99, 102, 241, 0.12); color: var(--accent); align-items: center; justify-content: center; font-weight: 800; font-size: 0.85em;">
+                            ${esc((u.name || 'م')[0])}
+                          </span>
+                          <span>${esc(u.name || 'مستخدم بدون اسم')}</span>
+                        </div>
+                      </td>
+                      <td style="direction: ltr; text-align: right; color: var(--muted); font-family: monospace;">${esc(u.email || '-')}</td>
+                      <td><span class="badge" style="background: rgba(99, 102, 241, 0.08); color: var(--accent); padding: 3px 9px; border-radius: 6px; font-size: 0.85em; font-weight: 600;">${esc(u.stream || 'علمي')}</span></td>
+                      <td>${roleBadge}</td>
+                      <td style="text-align: center;">${actionHtml}</td>
+                    </tr>
+                  `;
+                }).join('')}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      `;
+    }
+
+    // Render Tab 2: Lessons
+    function renderLessonsTab() {
+      const subjectsList = Object.keys(subjectLessonCounts).sort();
+
+      const filtered = lessons.filter(l => {
+        if (lessonSubject !== 'all' && l.subject !== lessonSubject) return false;
+        if (lessonStream !== 'all' && l.stream && l.stream !== lessonStream && l.stream !== 'مشترك') return false;
+        if (lessonSearch) {
+          const q = lessonSearch.toLowerCase();
+          const title = String(l.title || '').toLowerCase();
+          const unit = String(l.unit || '').toLowerCase();
+          if (!title.includes(q) && !unit.includes(q)) return false;
+        }
+        return true;
+      });
+
+      return `
+        <div>
+          <!-- Subject chips summary -->
+          <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 20px;">
+            <button onclick="window.adminSetLessonSubject('all')" class="badge" style="cursor: pointer; border: 1px solid ${lessonSubject === 'all' ? 'var(--accent)' : 'var(--line)'}; background: ${lessonSubject === 'all' ? 'var(--accent)' : 'transparent'}; color: ${lessonSubject === 'all' ? '#fff' : 'var(--text)'}; padding: 6px 12px; border-radius: 20px; font-weight: 700; font-size: 0.82em;">
+              الكل (${lessons.length})
+            </button>
+            ${subjectsList.map(s => `
+              <button onclick="window.adminSetLessonSubject('${esc(s)}')" class="badge" style="cursor: pointer; border: 1px solid ${lessonSubject === s ? 'var(--accent)' : 'var(--line)'}; background: ${lessonSubject === s ? 'var(--accent)' : 'transparent'}; color: ${lessonSubject === s ? '#fff' : 'var(--text)'}; padding: 6px 12px; border-radius: 20px; font-weight: 700; font-size: 0.82em;">
+                ${esc(s)} (${subjectLessonCounts[s]})
+              </button>
+            `).join('')}
+          </div>
+
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; flex-wrap: wrap; gap: 12px;">
+            <div style="display: flex; gap: 10px; flex-wrap: wrap; align-items: center;">
+              <input type="text" id="adminLessonSearchInput" class="admin-search-input" placeholder="🔍 بحث في اسم الدرس أو الوحدة..." value="${attr(lessonSearch)}" style="min-width: 240px;">
+              <select id="adminLessonStreamSelect" class="admin-select">
+                <option value="all" ${lessonStream === 'all' ? 'selected' : ''}>جميع الفروع</option>
+                <option value="علمي" ${lessonStream === 'علمي' ? 'selected' : ''}>علمي</option>
+                <option value="أدبي" ${lessonStream === 'أدبي' ? 'selected' : ''}>أدبي</option>
+              </select>
+            </div>
+            <span class="badge" style="background: rgba(2, 132, 199, 0.1); color: #0284c7; padding: 6px 14px; border-radius: 20px; font-weight: 700;">عرض ${Math.min(filtered.length, 100)} من أصل ${filtered.length} درس</span>
+          </div>
+
+          <div style="overflow-x: auto;">
+            <table class="admin-table">
+              <thead>
+                <tr>
+                  <th style="width: 40px;">#</th>
+                  <th>عنوان الدرس</th>
+                  <th>المادة</th>
+                  <th>الوحدة الدراسية</th>
+                  <th>الفرع</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${filtered.length === 0 ? `
+                  <tr><td colspan="5" style="text-align: center; padding: 30px; color: var(--muted);">لا توجد دروس مطابقة للمحددات الحالية.</td></tr>
+                ` : filtered.slice(0, 100).map((l, idx) => `
+                  <tr>
+                    <td style="color: var(--muted); font-size: 0.85em;">${idx + 1}</td>
+                    <td style="font-weight: 700; color: var(--text);">${esc(l.title || 'درس بدون عنوان')}</td>
+                    <td><span class="badge" style="background: rgba(99, 102, 241, 0.1); color: var(--accent); padding: 3px 8px; border-radius: 6px; font-size: 0.85em; font-weight: 600;">${esc(l.subject || '-')}</span></td>
+                    <td style="color: var(--muted); font-size: 0.88em;">${esc(l.unit || '-')}</td>
+                    <td><span class="badge" style="background: rgba(16, 185, 129, 0.1); color: #10b981; padding: 3px 8px; border-radius: 6px; font-size: 0.82em; font-weight: 600;">${esc(l.stream || 'مشترك')}</span></td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      `;
+    }
+
+    // Render Tab 3: Channels
+    function renderChannelsTab() {
+      const channelSubjects = [...new Set(channels.map(c => c.subject).filter(Boolean))].sort();
+
+      const filtered = channels.filter(c => {
+        if (channelSubject !== 'all' && c.subject !== channelSubject) return false;
+        if (channelSearch) {
+          const q = channelSearch.toLowerCase();
+          const name = String(c.name || '').toLowerCase();
+          const desc = String(c.description || '').toLowerCase();
+          if (!name.includes(q) && !desc.includes(q)) return false;
+        }
+        return true;
+      });
+
+      return `
+        <div>
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; flex-wrap: wrap; gap: 12px;">
+            <div style="display: flex; gap: 10px; flex-wrap: wrap; align-items: center;">
+              <input type="text" id="adminChannelSearchInput" class="admin-search-input" placeholder="🔍 بحث في اسم القناة..." value="${attr(channelSearch)}" style="min-width: 220px;">
+              <select id="adminChannelSubjectSelect" class="admin-select">
+                <option value="all" ${channelSubject === 'all' ? 'selected' : ''}>جميع المواد</option>
+                ${channelSubjects.map(s => `<option value="${esc(s)}" ${channelSubject === s ? 'selected' : ''}>${esc(s)}</option>`).join('')}
+              </select>
+            </div>
+            <span class="badge" style="background: rgba(245, 158, 11, 0.1); color: #f59e0b; padding: 6px 14px; border-radius: 20px; font-weight: 700;">النتائج: ${filtered.length} قناة</span>
+          </div>
+
+          <div style="overflow-x: auto;">
+            <table class="admin-table">
+              <thead>
+                <tr>
+                  <th>اسم القناة</th>
+                  <th>المادة</th>
+                  <th>الرابط</th>
+                  <th style="text-align: center;">إجراءات الإشراف</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${filtered.length === 0 ? `
+                  <tr><td colspan="4" style="text-align: center; padding: 30px; color: var(--muted);">لا توجد قنوات تعليمية مسجلة حالياً.</td></tr>
+                ` : filtered.map(c => `
+                  <tr>
+                    <td style="font-weight: 700;">
+                      <div style="display: flex; align-items: center; gap: 8px;">
+                        <span style="font-size: 1.2em;">📺</span>
+                        <div>
+                          <div>${esc(c.name || 'قناة بدون اسم')}</div>
+                          ${c.description ? `<small style="color: var(--muted); font-size: 0.82em;">${esc(c.description)}</small>` : ''}
+                        </div>
+                      </div>
+                    </td>
+                    <td><span class="badge" style="background: rgba(245, 158, 11, 0.1); color: #f59e0b; padding: 3px 8px; border-radius: 6px; font-size: 0.85em; font-weight: 600;">${esc(c.subject || 'عام')}</span></td>
+                    <td>
+                      ${c.url ? `
+                        <a href="${attr(c.url)}" target="_blank" rel="noopener noreferrer" style="color: var(--accent); font-weight: 700; text-decoration: underline; font-size: 0.88em; display: inline-flex; align-items: center; gap: 4px;">
+                          معاينة القناة ↗
+                        </a>
+                      ` : '<span style="color: var(--muted); font-size: 0.85em;">-</span>'}
+                    </td>
+                    <td style="text-align: center;">
+                      <button onclick="window.adminDeleteChannel('${esc(c.id)}', '${esc(c.name || 'القناة')}')" style="padding: 5px 12px; font-size: 0.8em; border-radius: 8px; cursor: pointer; border: 1px solid rgba(239, 68, 68, 0.3); background: rgba(239, 68, 68, 0.1); color: #ef4444; font-weight: 700; display: inline-flex; align-items: center; gap: 4px;">
+                        🗑️ حذف
+                      </button>
+                    </td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      `;
+    }
+
+    // Render Tab 4: Exams
+    function renderExamsTab() {
+      const examSubjects = [...new Set(exams.map(e => e.subject).filter(Boolean))].sort();
+
+      const filtered = exams.filter(e => {
+        if (examSubject !== 'all' && e.subject !== examSubject) return false;
+        if (examSearch) {
+          const q = examSearch.toLowerCase();
+          const title = String(e.title || '').toLowerCase();
+          if (!title.includes(q)) return false;
+        }
+        return true;
+      });
+
+      return `
+        <div>
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; flex-wrap: wrap; gap: 12px;">
+            <div style="display: flex; gap: 10px; flex-wrap: wrap; align-items: center;">
+              <input type="text" id="adminExamSearchInput" class="admin-search-input" placeholder="🔍 بحث في اسم الامتحان..." value="${attr(examSearch)}" style="min-width: 220px;">
+              <select id="adminExamSubjectSelect" class="admin-select">
+                <option value="all" ${examSubject === 'all' ? 'selected' : ''}>جميع المواد</option>
+                ${examSubjects.map(s => `<option value="${esc(s)}" ${examSubject === s ? 'selected' : ''}>${esc(s)}</option>`).join('')}
+              </select>
+            </div>
+            <span class="badge" style="background: rgba(139, 92, 246, 0.1); color: #8b5cf6; padding: 6px 14px; border-radius: 20px; font-weight: 700;">النتائج: ${filtered.length} امتحان</span>
+          </div>
+
+          <div style="overflow-x: auto;">
+            <table class="admin-table">
+              <thead>
+                <tr>
+                  <th>عنوان الامتحان</th>
+                  <th>المادة</th>
+                  <th>الموعد</th>
+                  <th>المدة</th>
+                  <th style="text-align: center;">إجراءات الإشراف</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${filtered.length === 0 ? `
+                  <tr><td colspan="5" style="text-align: center; padding: 30px; color: var(--muted);">لا توجد امتحانات مسجلة حالياً.</td></tr>
+                ` : filtered.map(e => `
+                  <tr>
+                    <td style="font-weight: 700;">
+                      <div style="display: flex; align-items: center; gap: 8px;">
+                        <span style="font-size: 1.2em;">📝</span>
+                        <span>${esc(e.title || 'امتحان بدون عنوان')}</span>
+                      </div>
+                    </td>
+                    <td><span class="badge" style="background: rgba(139, 92, 246, 0.1); color: #8b5cf6; padding: 3px 8px; border-radius: 6px; font-size: 0.85em; font-weight: 600;">${esc(e.subject || 'عام')}</span></td>
+                    <td style="color: var(--muted); font-size: 0.88em;">${esc(e.at || '-')}</td>
+                    <td style="color: var(--muted); font-size: 0.88em;">${e.duration ? `${esc(e.duration)} دقيقة` : '-'}</td>
+                    <td style="text-align: center;">
+                      <button onclick="window.adminDeleteExam('${esc(e.id)}', '${esc(e.title || 'الامتحان')}')" style="padding: 5px 12px; font-size: 0.8em; border-radius: 8px; cursor: pointer; border: 1px solid rgba(239, 68, 68, 0.3); background: rgba(239, 68, 68, 0.1); color: #ef4444; font-weight: 700; display: inline-flex; align-items: center; gap: 4px;">
+                        🗑️ حذف
+                      </button>
+                    </td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      `;
+    }
+
+    // Render Tab 5: Progress
+    function renderProgressTab() {
+      const filtered = progress.filter(p => {
+        if (progressSearch) {
+          const q = progressSearch.toLowerCase();
+          const student = userMap.get(p.user);
+          const studentName = String(student?.name || '').toLowerCase();
+          const studentEmail = String(student?.email || '').toLowerCase();
+          const lessonId = String(p.lesson || '').toLowerCase();
+          if (!studentName.includes(q) && !studentEmail.includes(q) && !lessonId.includes(q)) return false;
+        }
+        return true;
+      });
+
+      return `
+        <div>
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; flex-wrap: wrap; gap: 12px;">
+            <input type="text" id="adminProgressSearchInput" class="admin-search-input" placeholder="🔍 بحث باسم الطالب أو معرّف الدرس..." value="${attr(progressSearch)}" style="min-width: 260px;">
+            <span class="badge" style="background: rgba(236, 72, 153, 0.1); color: #ec4899; padding: 6px 14px; border-radius: 20px; font-weight: 700;">عرض ${Math.min(filtered.length, 50)} من أصل ${filtered.length} سجل</span>
+          </div>
+
+          <div style="overflow-x: auto;">
+            <table class="admin-table">
+              <thead>
+                <tr>
+                  <th>الطالب</th>
+                  <th>معرّف الدرس</th>
+                  <th>مراحل الإنجاز</th>
+                  <th style="text-align: center;">اكتمال الدرس</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${filtered.length === 0 ? `
+                  <tr><td colspan="4" style="text-align: center; padding: 30px; color: var(--muted);">لا توجد سجلات تقدم متطابقة.</td></tr>
+                ` : filtered.slice(0, 50).map(p => {
+                  const student = userMap.get(p.user);
+                  const stages = [
+                    p.first && 'دراسة أولى ✅',
+                    p.review1 && 'مراجعة 1 ✅',
+                    p.review2 && 'مراجعة 2 ✅',
+                    p.retention && 'تثبيت ✅',
+                    p.final && 'نهائية ✅'
+                  ].filter(Boolean);
+
+                  const count = stages.length;
+                  const pct = Math.round((count / 5) * 100);
+
+                  return `
+                    <tr>
+                      <td>
+                        <div style="font-weight: 700; color: var(--text);">${esc(student?.name || 'طالب')}</div>
+                        <small style="color: var(--muted); font-size: 0.82em; font-family: monospace;">${esc(student?.email || p.user || '-')}</small>
+                      </td>
+                      <td style="color: var(--muted); font-size: 0.85em; font-family: monospace;">${esc(p.lesson || '-')}</td>
+                      <td>
+                        <div style="display: flex; gap: 4px; flex-wrap: wrap;">
+                          ${stages.length > 0 ? stages.map(s => `<span class="badge" style="background: rgba(16, 185, 129, 0.12); color: #10b981; font-size: 0.78em; padding: 2px 7px; border-radius: 6px;">${s}</span>`).join('') : '<span style="color: var(--muted); font-size: 0.82em;">لم يبدأ بعد</span>'}
+                        </div>
+                      </td>
+                      <td style="text-align: center;">
+                        <span class="badge" style="background: ${pct >= 100 ? 'rgba(16, 185, 129, 0.15)' : 'rgba(99, 102, 241, 0.1)'}; color: ${pct >= 100 ? '#10b981' : 'var(--accent)'}; font-weight: 800; padding: 4px 10px; border-radius: 8px;">
+                          ${pct}%
+                        </span>
+                      </td>
+                    </tr>
+                  `;
+                }).join('')}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      `;
+    }
+
+    // Bind event handlers
+    function bindUserTabEvents() {
+      const searchInput = $("adminUserSearchInput");
+      if (searchInput) {
+        searchInput.oninput = (e) => {
+          userSearch = e.target.value;
+          updateTabContent();
+          $("adminUserSearchInput")?.focus();
+        };
+      }
+      const roleSelect = $("adminUserRoleSelect");
+      if (roleSelect) {
+        roleSelect.onchange = (e) => {
+          userRole = e.target.value;
+          updateTabContent();
+        };
+      }
+      const streamSelect = $("adminUserStreamSelect");
+      if (streamSelect) {
+        streamSelect.onchange = (e) => {
+          userStream = e.target.value;
+          updateTabContent();
+        };
+      }
+    }
+
+    function bindLessonTabEvents() {
+      const searchInput = $("adminLessonSearchInput");
+      if (searchInput) {
+        searchInput.oninput = (e) => {
+          lessonSearch = e.target.value;
+          updateTabContent();
+          $("adminLessonSearchInput")?.focus();
+        };
+      }
+      const streamSelect = $("adminLessonStreamSelect");
+      if (streamSelect) {
+        streamSelect.onchange = (e) => {
+          lessonStream = e.target.value;
+          updateTabContent();
+        };
+      }
+    }
+
+    function bindChannelTabEvents() {
+      const searchInput = $("adminChannelSearchInput");
+      if (searchInput) {
+        searchInput.oninput = (e) => {
+          channelSearch = e.target.value;
+          updateTabContent();
+          $("adminChannelSearchInput")?.focus();
+        };
+      }
+      const subjectSelect = $("adminChannelSubjectSelect");
+      if (subjectSelect) {
+        subjectSelect.onchange = (e) => {
+          channelSubject = e.target.value;
+          updateTabContent();
+        };
+      }
+    }
+
+    function bindExamTabEvents() {
+      const searchInput = $("adminExamSearchInput");
+      if (searchInput) {
+        searchInput.oninput = (e) => {
+          examSearch = e.target.value;
+          updateTabContent();
+          $("adminExamSearchInput")?.focus();
+        };
+      }
+      const subjectSelect = $("adminExamSubjectSelect");
+      if (subjectSelect) {
+        subjectSelect.onchange = (e) => {
+          examSubject = e.target.value;
+          updateTabContent();
+        };
+      }
+    }
+
+    function bindProgressTabEvents() {
+      const searchInput = $("adminProgressSearchInput");
+      if (searchInput) {
+        searchInput.oninput = (e) => {
+          progressSearch = e.target.value;
+          updateTabContent();
+          $("adminProgressSearchInput")?.focus();
+        };
+      }
+    }
+
+    // Tab content updater
+    function updateTabContent() {
+      const container = $("adminTabContent");
+      if (!container) return;
+
+      if (currentTab === 'users') {
+        container.innerHTML = renderUsersTab();
+        bindUserTabEvents();
+      } else if (currentTab === 'lessons') {
+        container.innerHTML = renderLessonsTab();
+        bindLessonTabEvents();
+      } else if (currentTab === 'channels') {
+        container.innerHTML = renderChannelsTab();
+        bindChannelTabEvents();
+      } else if (currentTab === 'exams') {
+        container.innerHTML = renderExamsTab();
+        bindExamTabEvents();
+      } else if (currentTab === 'progress') {
+        container.innerHTML = renderProgressTab();
+        bindProgressTabEvents();
+      }
+    }
+
+    // Switch tab handler
+    window.adminSwitchTab = (tabName) => {
+      currentTab = tabName;
+      document.querySelectorAll('#adminTabsNav .admin-tab-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.tab === tabName);
+      });
+      updateTabContent();
+    };
+
+    window.adminSetLessonSubject = (subject) => {
+      lessonSubject = subject;
+      updateTabContent();
+    };
+
+    // Supervision: Delete channel
+    window.adminDeleteChannel = async (channelId, channelTitle) => {
+      if (!confirm(`هل أنت متأكد من حذف القناة التعليمية "${channelTitle}" نهائياً من قاعدة البيانات؟`)) return;
       try {
-        await updateDoc(doc(db, 'users', userId), { role: newRole });
-        showToast(`تم تحديث الصلاحية في قاعدة البيانات إلى: ${newRole === 'admin' ? 'مشرف 👑' : 'طالب 👤'} بنجاح!`, 'success');
-        await adminPage();
+        await deleteDoc(doc(db, 'channels', channelId));
+        const idx = channels.findIndex(c => c.id === channelId);
+        if (idx !== -1) channels.splice(idx, 1);
+        const countEl = $("statChannelsCount");
+        if (countEl) countEl.textContent = channels.length;
+        showToast(`تم حذف القناة "${channelTitle}" بنجاح 🗑️`, 'success');
+        updateTabContent();
+      } catch (err) {
+        showToast('تعذر حذف القناة: ' + err.message, 'error');
+      }
+    };
+
+    // Supervision: Delete exam
+    window.adminDeleteExam = async (examId, examTitle) => {
+      if (!confirm(`هل أنت متأكد من حذف الامتحان "${examTitle}" نهائياً من قاعدة البيانات؟`)) return;
+      try {
+        await deleteDoc(doc(db, 'exams', examId));
+        const idx = exams.findIndex(e => e.id === examId);
+        if (idx !== -1) exams.splice(idx, 1);
+        const countEl = $("statExamsCount");
+        if (countEl) countEl.textContent = exams.length;
+        showToast(`تم حذف الامتحان "${examTitle}" بنجاح 🗑️`, 'success');
+        updateTabContent();
+      } catch (err) {
+        showToast('تعذر حذف الامتحان: ' + err.message, 'error');
+      }
+    };
+
+    // Owner role management
+    window.adminToggleUserRole = async (userId, targetRole) => {
+      const targetUser = users.find(u => u.id === userId);
+      if (!targetUser) return;
+
+      // Protection: Owner cannot be modified by anyone
+      if (isUserOwner({ email: targetUser.email }, targetUser)) {
+        showToast('عذراً، رتبة المالك محمية بشكل مطلق ولا يمكن تعديلها! 👑', 'error');
+        return;
+      }
+
+      // Protection: Only the Owner can modify roles
+      if (!isOwner) {
+        showToast('عذراً، تعديل الرتب الإدارية مقتصر حصراً على مالك المنصة! 👑', 'error');
+        return;
+      }
+
+      // Security check: Only 'admin' or 'student' can be set
+      if (targetRole !== 'admin' && targetRole !== 'student') {
+        showToast('رتبة غير صالحة!', 'error');
+        return;
+      }
+
+      const confirmMsg = targetRole === 'admin'
+        ? `هل أنت متأكد من ترقية المستخدم "${targetUser.name || targetUser.email}" إلى مشرف معتمد 🛡️؟`
+        : `هل أنت متأكد من سحب صلاحيات الإشراف من المستخدم "${targetUser.name || targetUser.email}"؟`;
+
+      if (!confirm(confirmMsg)) return;
+
+      try {
+        await updateDoc(doc(db, 'users', userId), { role: targetRole });
+        targetUser.role = targetRole;
+        targetUser.isAdmin = targetRole === 'admin';
+        showToast(`تم تحديث الصلاحية بنجاح إلى: ${targetRole === 'admin' ? 'مشرف معتمد 🛡️' : 'طالب 👤'}`, 'success');
+        updateTabContent();
       } catch (err) {
         showToast('فشل تعديل الصلاحية: ' + err.message, 'error');
       }
     };
 
-    shell({
-      title: "لوحة تحكم المشرف",
-      subtitle: "إدارة بيانات المستخدمين وإحصائيات المنصة",
-      active: "admin"
-    }, content);
+    // Initialize first tab
+    updateTabContent();
 
   } catch (err) {
     showError(err);
