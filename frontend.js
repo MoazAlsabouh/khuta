@@ -2450,7 +2450,8 @@ async function adminPage() {
       const unitNum = (d.unitNumber != null && !isNaN(Number(d.unitNumber)))
         ? Number(d.unitNumber)
         : ((UNIT_NUMBERS[d.subject] && UNIT_NUMBERS[d.subject][d.unit]) || 999);
-      lessons.push({ id: doc.id, ...d, unitNumber: unitNum });
+      const lessonName = d.lesson || d.title || 'درس بدون عنوان';
+      lessons.push({ id: doc.id, ...d, lesson: lessonName, title: lessonName, unitNumber: unitNum });
     });
     lessons.sort((a, b) => {
       if (a.subject !== b.subject) return (a.subject || '').localeCompare(b.subject || '', 'ar');
@@ -2735,7 +2736,7 @@ async function adminPage() {
         if (lessonStream !== 'all' && l.stream && l.stream !== lessonStream && l.stream !== 'مشترك') return false;
         if (lessonSearch) {
           const q = lessonSearch.toLowerCase();
-          const title = String(l.title || '').toLowerCase();
+          const title = String(l.lesson || l.title || '').toLowerCase();
           const unit = String(l.unit || '').toLowerCase();
           if (!title.includes(q) && !unit.includes(q)) return false;
         }
@@ -2785,7 +2786,7 @@ async function adminPage() {
                 ` : filtered.slice(0, 100).map((l, idx) => `
                   <tr>
                     <td style="color: var(--muted); font-size: 0.85em;">${idx + 1}</td>
-                    <td style="font-weight: 700; color: var(--text);">${esc(l.title || 'درس بدون عنوان')}</td>
+                    <td style="font-weight: 700; color: var(--text);">${esc(l.lesson || l.title || 'درس بدون عنوان')}</td>
                     <td><span class="badge" style="background: rgba(99, 102, 241, 0.1); color: var(--accent); padding: 3px 8px; border-radius: 6px; font-size: 0.85em; font-weight: 600;">${esc(l.subject || '-')}</span></td>
                     <td style="color: var(--muted); font-size: 0.88em;"><span class="badge" style="background: rgba(2, 132, 199, 0.1); color: #0284c7; padding: 2px 7px; border-radius: 4px; font-size: 0.8em; margin-left: 6px; font-weight: 700;">وحدة ${l.unitNumber || '-'}</span>${esc(l.unit || '-')}</td>
                     <td><span class="badge" style="background: rgba(16, 185, 129, 0.1); color: #10b981; padding: 3px 8px; border-radius: 6px; font-size: 0.82em; font-weight: 600;">${esc(l.stream || 'مشترك')}</span></td>
