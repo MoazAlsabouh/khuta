@@ -1,4 +1,4 @@
-const CACHE_NAME = 'khuta-pwa-v9';
+const CACHE_NAME = 'khuta-pwa-v10';
 const PRECACHE_ASSETS = [
   './',
   './index.html',
