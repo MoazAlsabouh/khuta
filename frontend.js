@@ -1228,16 +1228,6 @@ function renderSubjectPage(d, subjectName) {
         <small>يمكنك فتح الوحدات والتنقل بينها دون ازدحام الصفحة.</small>
       </div>
     </section>
-    <section class="stage-grid compact-stages">
-      ${stages.map(s => `
-        <article class="stage-card">
-          <strong>${s.percent}%</strong>
-          <b>${esc(s.label)}</b>
-          <span>${s.done} من ${s.total}</span>
-          ${bar(s.percent)}
-        </article>
-      `).join("")}
-    </section>
     <section class="card lessons-card">
       <div class="section-title">
         <div>
@@ -1256,6 +1246,16 @@ function renderSubjectPage(d, subjectName) {
       </div>
       <div id="unitProgress"></div>
       <div id="lessons" class="lessons"></div>
+    </section>
+    <section class="stage-grid compact-stages">
+      ${stages.map(s => `
+        <article class="stage-card">
+          <strong>${s.percent}%</strong>
+          <b>${esc(s.label)}</b>
+          <span>${s.done} من ${s.total}</span>
+          ${bar(s.percent)}
+        </article>
+      `).join("")}
     </section>
     <section class="card">
       <div class="section-title">
