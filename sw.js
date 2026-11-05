@@ -1,4 +1,4 @@
-const CACHE_NAME = 'khuta-pwa-v12';
+const CACHE_NAME = 'khuta-pwa-v13';
 const PRECACHE_ASSETS = [
   './',
   './index.html',
@@ -57,8 +57,9 @@ self.addEventListener('fetch', (event) => {
   // Skip non-GET requests and external API / Firestore / Auth calls
   if (req.method !== 'GET') return;
   if (url.origin !== self.location.origin) {
-    // For external static CDN files (like Firebase JS or Google Fonts)
-    if (url.hostname.includes('gstatic.com') || url.hostname.includes('googleapis.com')) {
+    // Only cache static CDN files (Firebase JS SDK from gstatic or Google Fonts CSS)
+    // Never cache *.googleapis.com API endpoints (identitytoolkit, firestore, www.googleapis.com)
+    if (url.hostname.includes('gstatic.com') || url.hostname === 'fonts.googleapis.com') {
       event.respondWith(
         caches.match(req).then((cached) => {
           return cached || fetch(req).then((res) => {

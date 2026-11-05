@@ -21,6 +21,16 @@
       if (t === 'dark' || (!t && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
         document.documentElement.setAttribute('data-theme', 'dark');
       }
+      if ('caches' in window) {
+        caches.keys().then(keys => {
+          keys.forEach(k => {
+            if (k !== 'khuta-pwa-v13') caches.delete(k);
+          });
+        });
+      }
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('./sw.js').then(reg => reg.update()).catch(() => {});
+      }
     })();
   </script>
 </head>
